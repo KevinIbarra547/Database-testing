@@ -1,0 +1,17 @@
+<%- include("partials/header", { title }) %>
+<section class="form-card">
+  <p class="eyebrow">Create an account</p>
+  <h1>Sign up</h1>
+  <p class="intro">Your password will be stored as a bcrypt hash, not plain text.</p>
+  <% if (error) { %><div class="alert error" role="alert"><%= error %></div><% } %>
+  <form method="post" action="/signup">
+    <label for="username">Username</label>
+    <input id="username" name="username" maxlength="25" required value="<%= form.username || '' %>">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" maxlength="255" required value="<%= form.email || '' %>">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" minlength="8" required>
+    <button class="button" type="submit">Create account</button>
+  </form>
+</section>
+<%- include("partials/footer") %>

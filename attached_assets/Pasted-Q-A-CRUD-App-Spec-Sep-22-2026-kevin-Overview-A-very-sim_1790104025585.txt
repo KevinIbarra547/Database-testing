@@ -1,0 +1,216 @@
+Q&A CRUD App — Spec
+
+
+
+
+
+
+
+
+
+Sep 22, 2026 · @kevin
+Overview
+A very simple Q&A website where users sign up, post questions, and answer each other's questions. It is a school learning project about database design and CRUD, so simple and readable code matters more than features.
+• Built in Replit using the Replit Agent
+• Uses an existing MySQL database hosted outside Replit (managed in phpMyAdmin)
+• Database login details are stored in Replit Secrets, never in the code
+Tech stack and hosting
+The app runs on Replit; only the database lives elsewhere.
+Part
+Choice
+Server
+Node.js + Express
+Pages
+EJS templates (server-rendered HTML, no React)
+Styling
+One simple CSS file
+Database driver
+mysql2 (promise version, connection pool)
+Logins
+express-session + bcrypt
+Database
+Existing MySQL database on external host
+flowchart LR
+  B[Browser] --> R[Replit app<br/>Node + Express]
+  R --> D[(External MySQL<br/>database)]
+  S[Replit Secrets] -.-> R
+The browser only talks to the Replit app. The app reads DB credentials from Secrets and connects to the external database.
+Database connection and Replit Secrets
+All credentials come from Replit Secrets through process.env. Nothing sensitive is written in the code or committed to GitHub.
+Secret name
+What it holds
+DB_HOST
+The database server's public hostname or IP
+DB_PORT
+Usually 3306
+DB_USER
+Database username
+DB_PASSWORD
+Database password
+DB_NAME
+Database name (u237055794_395207)
+SESSION_SECRET
+A long random string for login sessions
+• Create one shared connection pool in a file like db.js and reuse it everywhere
+• If a secret is missing, the app should print a clear error on startup
+• DB_HOST is not 127.0.0.1. phpMyAdmin shows 127.0.0.1 because it runs on the same server as the database; Replit needs the host's public address
+• The database host must allow remote MySQL connections. Turn this on in the hosting panel (often called "Remote MySQL") before testing
+Existing database tables (do not modify)
+The three tables already exist. The app must use these exact table and column names and must not create, drop, or alter any tables.
+Qa1_users
+Column
+Type
+Notes
+uid_user
+INT
+Primary key, auto-increment
+Uname
+VARCHAR(25)
+Unique username
+password
+VARCHAR(255)
+bcrypt hash only, never plain text
+email
+VARCHAR(255)
+Unique
+register
+DATETIME
+Defaults to current time
+Qa1_questions
+Column
+Type
+Notes
+question_id
+INT
+Primary key, auto-increment
+uid_user
+INT
+Foreign key to Qa1_users
+title
+VARCHAR(150)
+Short headline
+body
+TEXT
+Full question
+created_at
+DATETIME
+Defaults to current time
+Qa1_answers
+Column
+Type
+Notes
+answer_id
+INT
+Primary key, auto-increment
+question_id
+INT
+Foreign key to Qa1_questions
+uid_user
+INT
+Foreign key to Qa1_users
+body
+TEXT
+The answer
+created_at
+DATETIME
+Defaults to current time
+Deleting a question automatically deletes its answers (ON DELETE CASCADE), so the app does not need extra code for that.
+Features
+Each table gets full CRUD. Anyone can read; you must be logged in to post, and you can only edit or delete your own posts.
+
+Users
+Questions
+Answers
+Create
+Sign up
+Ask a question
+Answer a question
+Read
+See username on posts
+List all questions, view one
+Shown under the question
+Update
+Not needed
+Edit own question
+Edit own answer
+Delete
+Not needed
+Delete own question
+Delete own answer
+• Sign up: username, email, password. Reject duplicate username or email with a friendly message
+• Log in / log out: by username and password
+• Home page: all questions, newest first, showing title, asker's username, date, and answer count
+• Question page: the question plus all its answers, oldest first, with an answer form at the bottom
+Pages and routes
+Plain HTML forms submit with POST. Every page shows a top bar with the site name, plus Log in / Sign up or the username and Log out.
+Method
+Route
+What it does
+Login needed
+GET
+/
+List all questions
+No
+GET / POST
+/signup
+Sign-up form / create user
+No
+GET / POST
+/login
+Login form / start session
+No
+POST
+/logout
+End session
+Yes
+GET / POST
+/questions/new
+Ask form / create question
+Yes
+GET
+/questions/:id
+View question and its answers
+No
+GET / POST
+/questions/:id/edit
+Edit form / save changes
+Owner only
+POST
+/questions/:id/delete
+Delete question
+Owner only
+POST
+/questions/:id/answers
+Add an answer
+Yes
+GET / POST
+/answers/:id/edit
+Edit form / save changes
+Owner only
+POST
+/answers/:id/delete
+Delete answer
+Owner only
+Rules and security basics
+These are required even though it is a school project.
+• Prepared statements only: every query uses ? placeholders. Never build SQL by joining strings with user input
+• Hashed passwords: bcrypt on sign-up, bcrypt.compare on login
+• Ownership check on the server: before edit or delete, confirm the post's uid_user matches the logged-in user. Hiding buttons is not enough
+• Escape output: use EJS <%= %> (not <%- %>) for anything a user typed
+• Validation: no empty fields; title max 150 characters, username max 25
+• Errors: show a simple friendly message, never raw database errors
+• Code style: small files, clear names, short comments explaining each query so it is easy to learn from
+Out of scope
+Keep the app simple. Do not add: voting, tags, search, user profiles, password reset, email sending, admin panel, image uploads, or a JavaScript front-end framework.
+Done checklist
+The app is finished when all of these work:
+[ ] App starts on Replit and connects to the external database using Secrets
+[ ] New user can sign up; the password shows as a hash in phpMyAdmin
+[ ] Duplicate username or email is rejected with a message
+[ ] User can log in and log out
+[ ] Logged-in user can ask, edit, and delete their own question
+[ ] Logged-in user can answer, edit, and delete their own answer
+[ ] A user cannot edit or delete someone else's post, even by typing the URL
+[ ] Deleting a question also removes its answers
+[ ] Logged-out visitors can read but not post
+[ ] No credentials appear anywhere in the code

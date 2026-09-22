@@ -1,0 +1,15 @@
+<%- include("partials/header", { title }) %>
+<section class="form-card">
+  <p class="eyebrow">Welcome back</p>
+  <h1>Log in</h1>
+  <% if (created) { %><div class="alert success" role="status">Account created. You can log in now.</div><% } %>
+  <% if (error) { %><div class="alert error" role="alert"><%= error %></div><% } %>
+  <form method="post" action="/login">
+    <label for="username">Username</label>
+    <input id="username" name="username" required>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" required>
+    <button class="button" type="submit">Log in</button>
+  </form>
+</section>
+<%- include("partials/footer") %>

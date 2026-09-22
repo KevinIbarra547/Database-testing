@@ -1,0 +1,18 @@
+<%- include("partials/header", { title }) %>
+<section class="card setup-card">
+  <p class="eyebrow">One setup step left</p>
+  <h1>Connect the existing MySQL database</h1>
+  <p>The app is running, but it cannot query your database yet. Add the missing values as Replit Secrets, then restart the app.</p>
+  <div class="setup-list">
+    <p><strong>Secrets still needed:</strong></p>
+    <code><%= dbMessage %></code>
+  </div>
+  <h2>What to check in your hosting panel</h2>
+  <ol>
+    <li>Use the database host’s public hostname, not <code>127.0.0.1</code>.</li>
+    <li>Make sure Remote MySQL access allows this Replit app to connect.</li>
+    <li>Confirm the database already contains <code>Qa1_users</code>, <code>Qa1_questions</code>, and <code>Qa1_answers</code>.</li>
+  </ol>
+  <p class="note">Never paste passwords into chat or into source code. Replit Secrets keeps them out of the project files.</p>
+</section>
+<%- include("partials/footer") %>

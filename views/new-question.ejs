@@ -1,0 +1,17 @@
+<%- include("partials/header", { title }) %>
+<section class="form-card wide">
+  <p class="eyebrow">Share what you are learning</p>
+  <h1>Ask a question</h1>
+  <% if (error) { %><div class="alert error" role="alert"><%= error %></div><% } %>
+  <form method="post" action="/questions/new">
+    <label for="title">Title <span class="hint">(150 characters max)</span></label>
+    <input id="title" name="title" maxlength="150" required value="<%= form.title || '' %>">
+    <label for="body">Question</label>
+    <textarea id="body" name="body" rows="8" required><%= form.body || '' %></textarea>
+    <div class="form-actions">
+      <button class="button" type="submit">Post question</button>
+      <a class="button secondary" href="/">Cancel</a>
+    </div>
+  </form>
+</section>
+<%- include("partials/footer") %>

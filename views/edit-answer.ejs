@@ -1,0 +1,15 @@
+<%- include("partials/header", { title }) %>
+<section class="form-card wide">
+  <p class="eyebrow">Update your post</p>
+  <h1>Edit answer</h1>
+  <% if (error) { %><div class="alert error" role="alert"><%= error %></div><% } %>
+  <form method="post" action="/answers/<%= answer.answer_id %>/edit">
+    <label for="body">Answer</label>
+    <textarea id="body" name="body" rows="8" required><%= answer.body || '' %></textarea>
+    <div class="form-actions">
+      <button class="button" type="submit">Save changes</button>
+      <a class="button secondary" href="/questions/<%= answer.question_id || '' %>">Cancel</a>
+    </div>
+  </form>
+</section>
+<%- include("partials/footer") %>

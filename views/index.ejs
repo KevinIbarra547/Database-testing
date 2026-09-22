@@ -1,0 +1,35 @@
+<%- include("partials/header", { title }) %>
+<section class="hero">
+  <div>
+    <p class="eyebrow">Database learning project</p>
+    <h1>Questions from your class</h1>
+    <p class="intro">Ask clearly, explain your thinking, and help someone else learn.</p>
+  </div>
+  <% if (currentUser) { %>
+    <a class="button" href="/questions/new">Ask a question</a>
+  <% } %>
+</section>
+
+<% if (questions.length === 0) { %>
+  <section class="card empty-state">
+    <h2>No questions yet</h2>
+    <p>Be the first person to start the conversation.</p>
+  </section>
+<% } else { %>
+  <section class="question-list" aria-label="Questions">
+    <% questions.forEach((question) => { %>
+      <article class="card question-card">
+        <div class="question-card-main">
+          <h2><a href="/questions/<%= question.question_id %>"><%= question.title %></a></h2>
+          <p class="excerpt"><%= question.body.length > 180 ? question.body.slice(0, 180) + "…" : question.body %></p>
+          <p class="meta">Asked by <strong><%= question.username %></strong> · <%= question.created_at %></p>
+        </div>
+        <div class="answer-count">
+          <strong><%= question.answer_count %></strong>
+          <span><%= question.answer_count === 1 ? "answer" : "answers" %></span>
+        </div>
+      </article>
+    <% }) %>
+  </section>
+<% } %>
+<%- include("partials/footer") %>

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><%= title %> · Class Q&A</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container nav-row">
+        <a class="brand" href="/">Class Q&amp;A</a>
+        <nav aria-label="Main navigation">
+          <% if (currentUser) { %>
+            <span class="welcome">Hi, <strong><%= currentUser.username %></strong></span>
+            <a href="/questions/new">Ask a question</a>
+            <form class="inline-form" method="post" action="/logout">
+              <button class="link-button" type="submit">Log out</button>
+            </form>
+          <% } else { %>
+            <a href="/login">Log in</a>
+            <a class="button small" href="/signup">Sign up</a>
+          <% } %>
+        </nav>
+      </div>
+    </header>
+    <main class="container">
