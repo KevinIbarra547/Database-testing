@@ -256,7 +256,12 @@ app.get(
          ORDER BY a.created_at ASC, a.answer_id ASC`,
         [req.params.id],
       );
-      res.render("question", { title: question.title, question, answers, error: null });
+      res.render("question", {
+        title: question.title,
+        question,
+        answers,
+        error: req.query.error === "answer" ? "Answer text is required." : null,
+      });
     } catch (error) {
       renderDatabaseError(res, error, "setup");
     }
