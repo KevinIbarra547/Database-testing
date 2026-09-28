@@ -23,6 +23,7 @@
           <h2><a href="/questions/<%= question.question_id %>"><%= question.title %></a></h2>
           <p class="excerpt"><%= question.body.length > 180 ? question.body.slice(0, 180) + "…" : question.body %></p>
           <p class="meta">Asked by <strong><%= question.username %></strong> · <%= question.created_at %></p>
+          <%- include("partials/question-tags", { question }) %>
         </div>
         <div class="answer-count">
           <strong><%= question.answer_count %></strong>

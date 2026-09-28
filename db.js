@@ -35,8 +35,33 @@ async function execute(sql, params = []) {
   return pool.execute(sql, params);
 }
 
+// Runs several queries as one all-or-nothing unit. If any query inside `work`
+// throws, every change it made is rolled back, so the database never ends up
+// half-updated. `work` receives a connection; use `connection.execute(sql, params)`.
+async function withTransaction(work) {
+  if (!pool) {
+    const error = new Error(getConfigurationMessage());
+    error.code = "DB_NOT_CONFIGURED";
+    throw error;
+  }
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const result = await work(connection);
+    await connection.commit();
+    return result;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   execute,
+  withTransaction,
   getConfigurationMessage,
   isConfigured,
   missingSecrets,

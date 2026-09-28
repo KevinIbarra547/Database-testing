@@ -5,7 +5,9 @@
   "main": "app.js",
   "scripts": {
     "dev": "node app.js",
-    "start": "node app.js"
+    "start": "node app.js",
+    "migrate:status": "node scripts/migrate.js status",
+    "migrate:up": "node scripts/migrate.js up"
   },
   "keywords": [],
   "author": "",
