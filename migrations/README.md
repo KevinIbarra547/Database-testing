@@ -3,7 +3,7 @@
 Each `.sql` file here is one change to the database's structure, such as
 adding a table. The files run in name order, and each one runs only once.
 
-- Name: `YYYYMMDDHHMM_short_description.sql` (for example `202609281530_create_tags.sql`).
+- Name: `YYYYMMDDHHMM_short_description.sql` (for example `202609301530_create_board_posts.sql`).
 - Only add new tables. Never change `Qa1_users`, `Qa1_questions` or `Qa1_answers`.
 - Never edit a file after it has been applied. Add a new file instead.
 

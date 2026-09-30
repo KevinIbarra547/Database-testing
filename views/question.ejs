@@ -3,7 +3,6 @@
   <p class="eyebrow">Question</p>
   <h1><%= question.title %></h1>
   <p class="meta">Asked by <strong><%= question.username %></strong> · <%= question.created_at %></p>
-  <%- include("partials/question-tags", { question }) %>
   <div class="card post-body"><%= question.body %></div>
 
   <% if (currentUser && currentUser.id === question.uid_user) { %>
@@ -21,8 +20,7 @@
       <p class="muted">No answers yet. Could you help?</p>
     <% } %>
     <% answers.forEach((answer) => { %>
-      <article class="card answer-card" id="answer-<%= answer.answer_id %>">
-        <%- include("partials/answer-votes", { answer }) %>
+      <article class="card answer-card">
         <div class="post-body"><%= answer.body %></div>
         <p class="meta">Answered by <strong><%= answer.username %></strong> · <%= answer.created_at %></p>
         <% if (currentUser && currentUser.id === answer.uid_user) { %>

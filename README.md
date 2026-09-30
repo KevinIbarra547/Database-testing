@@ -21,7 +21,7 @@ This is a small server-rendered Q&A app built from the attached spec:
 ## Project layout
 
 - `app.js`: sets up Express and mounts the route files
-- `routes/`: one file per feature (`auth`, `questions`, `answers`, `votes`, `tags`)
+- `routes/`: one file per feature (`auth`, `questions`, `answers`, `board`)
 - `lib/`: shared helpers and form validation
 - `db.js`: the connection pool, `execute`, and `withTransaction`
 - `migrations/` + `scripts/migrate.js`: safe, tracked database changes (see `migrations/README.md`)
@@ -29,7 +29,7 @@ This is a small server-rendered Q&A app built from the attached spec:
 
 ## Working with several AI agents
 
-Each agent builds one feature on its own branch and opens a pull request (see
+Each agent builds its own part on its own branch and opens a pull request (see
 `AGENTS.md`). Merge the pull requests one at a time on GitHub. Then, in Replit:
 
 1. Pull `main` from the Git pane.

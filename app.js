@@ -37,8 +37,7 @@ app.use((req, res, next) => {
 app.use(require("./routes/questions"));
 app.use(require("./routes/answers"));
 app.use(require("./routes/auth"));
-app.use(require("./routes/votes"));
-app.use(require("./routes/tags"));
+app.use(require("./routes/board"));
 
 app.use((req, res) => {
   res.status(404).render("404", { title: "Page not found" });
