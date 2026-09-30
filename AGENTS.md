@@ -1,36 +1,26 @@
 # Rules for AI agents working on this repo
 
-Two AI agents build the **class board** feature **at the same time**, each on
-its own branch and in its own files. These rules keep them from breaking the
-database or creating merge conflicts. Read the whole file before changing anything.
+These rules keep AI agents from breaking the database or creating merge
+conflicts. Read the whole file before changing anything.
 
 The app is described in `attached_assets/Pasted-Q-A-CRUD-App-Spec-*.txt` and
 `README.md`. The security rules in the spec still apply to all new code.
 
 ## Who owns what
 
-| Part of the board | Agent | Branch |
+| Part | Agent | Branch |
 |---|---|---|
-| Database + server (migrations, routes, queries, rules) | Claude Code | `claude/dazzling-noether-hgzvt0` |
-| Pages + styling (EJS views, CSS) | Google AI Studio | `ai-studio/board` |
+| The class board (database, server, pages, CSS) | Claude Code | `claude/dazzling-noether-hgzvt0` |
 
-Only work on **your** part, on **your** branch. Never push to `main` or to
-the other agent's branch.
+Google AI Studio is **not** used on this project. If another agent joins
+later, give it its own branch and its own files, and add a row above first.
+Never push to `main` or to another agent's branch.
 
-### Files you own (edit freely)
+### Board files
 
-| Claude Code | Google AI Studio |
-|---|---|
-| `routes/board.js` | `views/board/index.ejs` |
-| `lib/board.js` | `views/board/show.ejs` |
-| `migrations/*board*.sql` | `views/board/form.ejs` |
-| | `public/board.css` |
-| | new partials named `views/board/_*.ejs` |
-
-These files already exist and are already connected: the router is mounted in
-`app.js`, `board.css` is linked and the "Board" link is in
-`views/partials/header.ejs`. **Neither agent edits any other file.** If you
-think another file must change, say so in your pull request instead.
+`routes/board.js`, `lib/board.js`, `views/board/*.ejs`, `public/board.css`,
+and `migrations/*board*.sql`. The router is mounted in `app.js`, `board.css`
+is linked and the "Board" link is in `views/partials/header.ejs`.
 
 ## The board, in one paragraph
 
@@ -45,8 +35,8 @@ accepts no new replies. There is no pinning UI and no announcements.
 
 ## Page contract
 
-The server (Claude Code) renders these views with exactly this data. The pages
-(Google AI Studio) must only use these names. Every view also gets
+`routes/board.js` renders these views with exactly this data, and the pages
+only use these names. Keep both sides in sync when changing either. Every view also gets
 `currentUser` (`{ id, username }` or `null`) and must start with
 `<%- include("../partials/header", { title }) %>` and end with
 `<%- include("../partials/footer") %>`. All dates are strings like
@@ -116,6 +106,8 @@ Forms on this page (plain HTML, `method="post"`):
 - `error`: string or `null`
 - `form`: `{ title, body, post_type, link_url, event_at, question_id }`
   (strings; empty string when blank). Pre-fill every field from it.
+  In `"edit"` mode `form` only has `{ title, body }`: **only the title and
+  message can be edited** (replies: only the message).
 - When `mode` is `"edit"`, show a note: "You can only edit once. Your
   original text will be kept and visible to everyone."
 
@@ -129,7 +121,8 @@ number: "Link a Q&A question by its number").
 1. **Never change the three original tables** (`Qa1_users`, `Qa1_questions`,
    `Qa1_answers`). No `ALTER`, `DROP`, `RENAME` or `TRUNCATE` on them.
 2. **Only one new table: `Qa1_board_posts`.** It is created only through
-   migration files. Never create tables from the app's code.
+   migration files. Never create tables from the app's code. A trigger
+   (`trg_board_posts_no_delete`) makes MySQL refuse every `DELETE` on it.
 3. Migration files go in `migrations/`, named
    `YYYYMMDDHHMM_short_description.sql` using the current date and time.
 4. Use `CREATE TABLE IF NOT EXISTS`, `ENGINE=InnoDB`, and name every constraint.

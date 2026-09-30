@@ -25,16 +25,34 @@ This is a small server-rendered Q&A app built from the attached spec:
 - `lib/`: shared helpers and form validation
 - `db.js`: the connection pool, `execute`, and `withTransaction`
 - `migrations/` + `scripts/migrate.js`: safe, tracked database changes (see `migrations/README.md`)
-- `AGENTS.md`: rules for the AI agents that work on this repo in parallel
+- `AGENTS.md`: rules for AI agents working on this repo
 
-## Working with several AI agents
+## Getting changes into Replit
 
-Each agent builds its own part on its own branch and opens a pull request (see
-`AGENTS.md`). Merge the pull requests one at a time on GitHub. Then, in Replit:
+Merge the pull request on GitHub. Then, in Replit:
 
 1. Pull `main` from the Git pane.
 2. Back up the database in phpMyAdmin, then run `npm run migrate:up` in the Shell.
 3. Restart the app.
+
+## The class board
+
+`/board` lets logged-in users post discussions, study groups and resources,
+and reply to them (one level of replies). Everything is stored in one new
+table, `Qa1_board_posts`:
+
+- Only the author can edit, delete, or change the status of their post.
+- Each post or reply can be edited **once**; the text from before the edit is
+  kept in `original_title` / `original_body` and shown under "View original".
+- "Delete" only sets `deleted_at`, so the post shows as deleted and its
+  replies stay. A database trigger blocks every real `DELETE` on the table.
+- A post can link to a Q&A question. If that question is deleted, the post
+  stays and says which question was deleted.
+- Effect on the old tables: a user who has board posts can no longer be
+  deleted. Nothing else about `Qa1_users`, `Qa1_questions` or `Qa1_answers` changes.
+
+To turn it on: back up in phpMyAdmin, run `npm run migrate:up` in the Replit
+Shell, then restart. The SQL is in `migrations/`, and the rules are in `lib/board.js`.
 
 ## How to learn from the code
 

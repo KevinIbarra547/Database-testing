@@ -1,1 +1,45 @@
-<%# Board page placeholder (owned by Google AI Studio). See the page contract in AGENTS.md for the data it receives. %>
+<%- include("../partials/header", { title }) %>
+<section class="form-card wide">
+  <p class="eyebrow">Class board</p>
+  <h1><%= title %></h1>
+  <% if (mode === "edit") { %>
+    <div class="alert board-note">You can only edit once. Your original text will be kept and visible to everyone.</div>
+  <% } %>
+  <% if (error) { %><div class="alert error" role="alert"><%= error %></div><% } %>
+
+  <form method="post" action="<%= action %>">
+    <% if (!is_reply) { %>
+      <label for="title">Title <span class="hint">(150 characters max)</span></label>
+      <input id="title" name="title" maxlength="150" required value="<%= form.title %>">
+    <% } %>
+
+    <% if (mode === "new") { %>
+      <label for="post_type">Type of post</label>
+      <select id="post_type" name="post_type">
+        <option value="discussion" <%= form.post_type === "discussion" ? "selected" : "" %>>Discussion</option>
+        <option value="study_group" <%= form.post_type === "study_group" ? "selected" : "" %>>Study group</option>
+        <option value="resource" <%= form.post_type === "resource" ? "selected" : "" %>>Resource</option>
+      </select>
+    <% } %>
+
+    <label for="body"><%= is_reply ? "Reply" : "Message" %></label>
+    <textarea id="body" name="body" rows="8" required><%= form.body %></textarea>
+
+    <% if (mode === "new") { %>
+      <label for="event_at">Study group date and time <span class="hint">(study groups only, optional)</span></label>
+      <input id="event_at" name="event_at" type="datetime-local" value="<%= form.event_at %>">
+
+      <label for="link_url">Link <span class="hint">(resources only, optional, starts with http:// or https://)</span></label>
+      <input id="link_url" name="link_url" type="url" maxlength="500" placeholder="https://" value="<%= form.link_url %>">
+
+      <label for="question_id">Link a Q&amp;A question by its number <span class="hint">(optional, e.g. 12 from /questions/12)</span></label>
+      <input id="question_id" name="question_id" inputmode="numeric" pattern="[0-9]*" value="<%= form.question_id %>">
+    <% } %>
+
+    <div class="form-actions">
+      <button class="button" type="submit"><%= mode === "new" ? "Post" : "Save my one edit" %></button>
+      <a class="button secondary" href="<%= cancel_url %>">Cancel</a>
+    </div>
+  </form>
+</section>
+<%- include("../partials/footer") %>

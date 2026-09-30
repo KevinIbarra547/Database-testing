@@ -1,0 +1,6 @@
+<%# Type and status labels for one post. Receives: post (post_type, status) %>
+<% const typeLabels = { discussion: "Discussion", study_group: "Study group", resource: "Resource" }; %>
+<span class="board-badge board-type-<%= post.post_type %>"><%= typeLabels[post.post_type] %></span>
+<% if (post.status !== "open") { %>
+  <span class="board-badge board-status-<%= post.status %>"><%= post.status === "resolved" ? "Resolved" : "Closed" %></span>
+<% } %>
