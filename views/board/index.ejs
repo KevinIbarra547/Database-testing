@@ -1,0 +1,44 @@
+<%- include("../partials/header", { title }) %>
+<section class="hero">
+  <div>
+    <p class="eyebrow">Class board</p>
+    <h1>Talk, plan, and share</h1>
+    <p class="intro">Start a discussion, organize a study group, or share a useful resource.</p>
+  </div>
+  <% if (currentUser) { %>
+    <a class="button" href="/board/new">New post</a>
+  <% } %>
+</section>
+
+<% if (posts.length === 0) { %>
+  <section class="card empty-state">
+    <h2>No posts yet</h2>
+    <p><%= currentUser ? "Be the first to post on the board." : "Log in to start the first post." %></p>
+  </section>
+<% } else { %>
+  <section class="question-list" aria-label="Board posts">
+    <% posts.forEach((post) => { %>
+      <article class="card question-card board-list-item<%= post.is_deleted ? " board-deleted" : "" %>">
+        <div class="question-card-main">
+          <p class="board-badges"><%- include("_badges", { post }) %></p>
+          <h2>
+            <a href="/board/<%= post.post_id %>">
+              <%= post.is_deleted ? "This post was deleted by its author." : post.title %>
+            </a>
+          </h2>
+          <% if (post.event_at && !post.is_deleted) { %>
+            <p class="board-event">Meets: <%= post.event_at.slice(0, 16) %></p>
+          <% } %>
+          <p class="meta">
+            <% if (!post.is_deleted) { %>Posted by <strong><%= post.username %></strong> · <% } %><%= post.created_at %>
+          </p>
+        </div>
+        <div class="answer-count">
+          <strong><%= post.reply_count %></strong>
+          <span><%= post.reply_count === 1 ? "reply" : "replies" %></span>
+        </div>
+      </article>
+    <% }) %>
+  </section>
+<% } %>
+<%- include("../partials/footer") %>

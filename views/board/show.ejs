@@ -1,0 +1,122 @@
+<%- include("../partials/header", { title }) %>
+<article class="question-page">
+  <p><a href="/board">← Back to the board</a></p>
+  <p class="board-badges"><%- include("_badges", { post }) %></p>
+
+  <% if (post.is_deleted) { %>
+    <h1>Deleted post</h1>
+    <div class="card board-deleted-note">This post was deleted by its author.</div>
+  <% } else { %>
+    <h1><%= post.title %></h1>
+    <p class="meta">
+      Posted by <strong><%= post.username %></strong> · <%= post.created_at %>
+      <% if (post.edit_count > 0) { %> · <span class="board-edited">Edited</span><% } %>
+    </p>
+
+    <% if (post.question) { %>
+      <p class="board-link-note">About Q&amp;A question:
+        <a href="/questions/<%= post.question.question_id %>"><%= post.question.title %></a></p>
+    <% } else if (post.linked_question_deleted) { %>
+      <p class="board-link-note muted">The linked question "<%= post.linked_question_title %>" was deleted.</p>
+    <% } %>
+    <% if (post.event_at) { %>
+      <p class="board-event">Study group meets: <strong><%= post.event_at.slice(0, 16) %></strong></p>
+    <% } %>
+    <% if (post.link_url) { %>
+      <p class="board-link-note">Resource: <a href="<%= post.link_url %>" rel="noopener noreferrer" target="_blank"><%= post.link_url %></a></p>
+    <% } %>
+
+    <div class="card post-body"><%= post.body %></div>
+
+    <% if (post.edit_count > 0) { %>
+      <details class="board-original">
+        <summary>View original</summary>
+        <p class="board-original-title"><%= post.original_title %></p>
+        <div class="post-body"><%= post.original_body %></div>
+      </details>
+    <% } %>
+
+    <% if (post.can_edit || post.can_delete || post.can_change_status) { %>
+      <div class="post-actions board-actions">
+        <% if (post.can_edit) { %>
+          <a class="button secondary small" href="/board/<%= post.post_id %>/edit">Edit (once)</a>
+        <% } %>
+        <% if (post.can_change_status) { %>
+          <form class="board-status-form" method="post" action="/board/<%= post.post_id %>/status">
+            <label class="board-inline-label" for="status">Status</label>
+            <select id="status" name="status">
+              <% ["open", "resolved", "closed"].forEach((status) => { %>
+                <option value="<%= status %>" <%= post.status === status ? "selected" : "" %>><%= status.charAt(0).toUpperCase() + status.slice(1) %></option>
+              <% }) %>
+            </select>
+            <button class="button secondary small" type="submit">Save</button>
+          </form>
+        <% } %>
+        <% if (post.can_delete) { %>
+          <form method="post" action="/board/<%= post.post_id %>/delete" onsubmit="return confirm('Delete this post? Its replies will stay.')">
+            <button class="button danger small" type="submit">Delete</button>
+          </form>
+        <% } %>
+      </div>
+    <% } %>
+  <% } %>
+
+  <section class="answers-section">
+    <h2><%= replies.length %> <%= replies.length === 1 ? "reply" : "replies" %></h2>
+    <% if (replies.length === 0) { %>
+      <p class="muted">No replies yet.</p>
+    <% } %>
+    <% replies.forEach((reply) => { %>
+      <article class="card answer-card<%= reply.is_deleted ? " board-deleted" : "" %>" id="post-<%= reply.post_id %>">
+        <% if (reply.is_deleted) { %>
+          <p class="muted">This reply was deleted by its author.</p>
+        <% } else { %>
+          <div class="post-body"><%= reply.body %></div>
+          <p class="meta">
+            Replied by <strong><%= reply.username %></strong> · <%= reply.created_at %>
+            <% if (reply.edit_count > 0) { %> · <span class="board-edited">Edited</span><% } %>
+          </p>
+          <% if (reply.edit_count > 0) { %>
+            <details class="board-original">
+              <summary>View original</summary>
+              <div class="post-body"><%= reply.original_body %></div>
+            </details>
+          <% } %>
+          <% if (reply.can_edit || reply.can_delete) { %>
+            <div class="post-actions">
+              <% if (reply.can_edit) { %>
+                <a class="button secondary small" href="/board/<%= reply.post_id %>/edit">Edit (once)</a>
+              <% } %>
+              <% if (reply.can_delete) { %>
+                <form method="post" action="/board/<%= reply.post_id %>/delete" onsubmit="return confirm('Delete this reply?')">
+                  <button class="button danger small" type="submit">Delete</button>
+                </form>
+              <% } %>
+            </div>
+          <% } %>
+        <% } %>
+      </article>
+    <% }) %>
+  </section>
+
+  <% if (can_reply) { %>
+    <section class="form-card answer-form">
+      <h2>Add a reply</h2>
+      <% if (reply_error) { %><div class="alert error" role="alert"><%= reply_error %></div><% } %>
+      <form method="post" action="/board/<%= post.post_id %>/replies">
+        <label for="body">Your reply</label>
+        <textarea id="body" name="body" rows="5" required><%= reply_form.body %></textarea>
+        <button class="button" type="submit">Post reply</button>
+      </form>
+    </section>
+  <% } else if (!currentUser) { %>
+    <section class="card callout"><p><a href="/login">Log in</a> to reply.</p></section>
+  <% } else if (reply_error) { %>
+    <div class="alert error" role="alert"><%= reply_error %></div>
+  <% } else if (post.is_deleted) { %>
+    <section class="card callout"><p>This post was deleted, so it can't get new replies.</p></section>
+  <% } else { %>
+    <section class="card callout"><p>This post is closed to new replies.</p></section>
+  <% } %>
+</article>
+<%- include("../partials/footer") %>

@@ -1,0 +1,30 @@
+/* Styles for the class board pages. Classes start with "board-" so they
+   never clash with the rest of the site. */
+.board-badges { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 .4rem; }
+.board-badge {
+  border-radius: 999px; font-size: .75rem; font-weight: 700; padding: .15rem .6rem;
+  background: #e8eef8; color: var(--ink);
+}
+.board-type-study_group { background: #ecfdf3; color: var(--success); }
+.board-type-resource { background: #fef6e7; color: #92400e; }
+.board-status-resolved { background: #ecfdf3; color: var(--success); }
+.board-status-closed { background: #f1f5f9; color: var(--muted); }
+.board-deleted { opacity: .7; }
+.board-deleted h2 a, .board-deleted-note { color: var(--muted); font-style: italic; }
+.board-deleted-note { margin: 1.5rem 0; padding: 1.25rem 1.5rem; }
+.board-event { margin: 0 0 .5rem; color: var(--success); font-size: .9rem; font-weight: 700; }
+.board-link-note { margin: .4rem 0; overflow-wrap: anywhere; }
+.board-edited { font-style: italic; }
+.board-original {
+  background: #f2f6fb; border-radius: .6rem; margin: 0 0 1rem; padding: .75rem 1rem;
+}
+.board-original summary { color: var(--blue-dark); cursor: pointer; font-weight: 700; }
+.board-original-title { font-weight: 700; margin: .75rem 0 .25rem; }
+.board-actions { flex-wrap: wrap; }
+.board-status-form { display: flex; align-items: center; gap: .4rem; }
+.board-inline-label { margin: 0; }
+.board-note { background: #eff6ff; color: var(--blue-dark); }
+.form-card select, .board-status-form select {
+  border: 1px solid #bfcede; border-radius: .5rem; background: white; color: var(--ink);
+  font: inherit; padding: .55rem .7rem;
+}

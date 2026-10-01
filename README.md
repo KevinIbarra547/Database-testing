@@ -18,10 +18,46 @@ This is a small server-rendered Q&A app built from the attached spec:
 
 `SESSION_SECRET` is also required for real login sessions. Do not put any database password in this file.
 
+## Project layout
+
+- `app.js`: sets up Express and mounts the route files
+- `routes/`: one file per feature (`auth`, `questions`, `answers`, `board`)
+- `lib/`: shared helpers and form validation
+- `db.js`: the connection pool, `execute`, and `withTransaction`
+- `migrations/` + `scripts/migrate.js`: safe, tracked database changes (see `migrations/README.md`)
+- `AGENTS.md`: rules for AI agents working on this repo
+
+## Getting changes into Replit
+
+Merge the pull request on GitHub. Then, in Replit:
+
+1. Pull `main` from the Git pane.
+2. Back up the database in phpMyAdmin, then run `npm run migrate:up` in the Shell.
+3. Restart the app.
+
+## The class board
+
+`/board` lets logged-in users post discussions, study groups and resources,
+and reply to them (one level of replies). Everything is stored in one new
+table, `Qa1_board_posts`:
+
+- Only the author can edit, delete, or change the status of their post.
+- Each post or reply can be edited **once**; the text from before the edit is
+  kept in `original_title` / `original_body` and shown under "View original".
+- "Delete" only sets `deleted_at`, so the post shows as deleted and its
+  replies stay. A database trigger blocks every real `DELETE` on the table.
+- A post can link to a Q&A question. If that question is deleted, the post
+  stays and says which question was deleted.
+- Effect on the old tables: a user who has board posts can no longer be
+  deleted. Nothing else about `Qa1_users`, `Qa1_questions` or `Qa1_answers` changes.
+
+To turn it on: back up in phpMyAdmin, run `npm run migrate:up` in the Replit
+Shell, then restart. The SQL is in `migrations/`, and the rules are in `lib/board.js`.
+
 ## How to learn from the code
 
-1. Start with `db.js`: it creates one connection pool and exposes one `execute` function.
-2. Read the `GET /` route in `app.js`: the `JOIN` connects questions to users and the `COUNT` counts answers.
+1. Start with `db.js`: it creates one connection pool and exposes `execute` and `withTransaction`.
+2. Read the `GET /` route in `routes/questions.js`: the `JOIN` connects questions to users and the `COUNT` counts answers.
 3. Read the sign-up route: `bcrypt.hash` protects the password before the `INSERT`.
 4. Compare the edit and delete routes: ownership is checked on the server, not only hidden in the HTML.
 5. Look at the EJS templates: `<%= %>` escapes text typed by users.
@@ -38,4 +74,4 @@ DESCRIBE Qa1_answers;
 SELECT uid_user, Uname, email, register FROM Qa1_users;
 ```
 
-The app never creates, drops, or alters the existing tables.
+The app never creates, drops, or alters the existing tables. New tables are only added through files in `migrations/`, which you run yourself.
