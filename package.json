@@ -8,7 +8,8 @@
     "start": "node app.js",
     "migrate:status": "node scripts/migrate.js status",
     "migrate:up": "node scripts/migrate.js up",
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "check": "node scripts/check-site.js"
   },
   "keywords": [],
   "author": "",

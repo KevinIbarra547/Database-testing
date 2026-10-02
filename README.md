@@ -65,6 +65,19 @@ Run it only on a **test** database: board posts can never be deleted, and
 users who wrote board posts can't be deleted either. The script asks you to
 type the database name and refuses to run twice.
 
+## Checking that nothing broke
+
+`npm run check` signs up two users and walks through every rule of the site:
+questions, answers, ownership, and the whole board. Run it with the app
+running, against a **test** database that has the sample data; it refuses to
+run on a database without it. It must end with `ALL PASSED`.
+
+## What's next
+
+`docs/class-feed-plan.md` is the step-by-step plan for the class feed (one
+page that lists questions and board posts together). It needs no database
+changes. `replit.md` tells the Replit Agent how to work on it safely.
+
 ## How to learn from the code
 
 1. Start with `db.js`: it creates one connection pool and exposes `execute` and `withTransaction`.
