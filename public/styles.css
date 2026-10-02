@@ -97,4 +97,5 @@ code { overflow-wrap: anywhere; }
   .nav-row { align-items: flex-start; flex-direction: column; padding: 1rem 0; }
   nav { justify-content: flex-start; }
   main.container { padding-top: 2rem; }
-}
+}.guide-note { margin: -1rem 0 2rem; }
+.discuss-link { color: var(--muted); font-size: .92rem; margin: 0 0 .5rem; }
