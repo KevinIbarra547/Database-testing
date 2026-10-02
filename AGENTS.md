@@ -10,11 +10,15 @@ The app is described in `attached_assets/Pasted-Q-A-CRUD-App-Spec-*.txt` and
 
 | Part | Agent | Branch |
 |---|---|---|
-| The class board (database, server, pages, CSS) | Claude Code | `claude/dazzling-noether-hgzvt0` |
+| The class board (database, server, pages, CSS) | Claude Code | done, on `main` |
+| The class feed, following `docs/class-feed-plan.md` | Replit Agent | `replit/class-feed` (or `main` if Kevin says so) |
 
-Google AI Studio is **not** used on this project. If another agent joins
-later, give it its own branch and its own files, and add a row above first.
-Never push to `main` or to another agent's branch.
+Only one agent works on the code at a time. Google AI Studio is **not** used
+on this project. If another agent joins later, give it its own branch and its
+own files, and add a row above first.
+
+Before committing any change, run `npm run check` against a **test** database
+(one that has the sample data from `npm run seed`). It must end with ALL PASSED.
 
 ### Board files
 
