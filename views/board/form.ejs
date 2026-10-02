@@ -5,6 +5,14 @@
   <% if (mode === "edit") { %>
     <div class="alert board-note">You can only edit once. Your original text will be kept and visible to everyone.</div>
   <% } %>
+  <% if (mode === "new") { %>
+    <p class="muted">Is this a question with an answer? <a href="/questions/new">Ask it in Q&amp;A instead</a>.</p>
+  <% } %>
+  <% const linked_question = locals.linked_question || null; %>
+  <% if (linked_question) { %>
+    <div class="alert board-note">This post will be linked to the question
+      <a href="/questions/<%= linked_question.question_id %>">"<%= linked_question.title %>"</a>.</div>
+  <% } %>
   <% if (error) { %><div class="alert error" role="alert"><%= error %></div><% } %>
 
   <form method="post" action="<%= action %>">

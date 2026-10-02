@@ -4,6 +4,12 @@
   <h1><%= question.title %></h1>
   <p class="meta">Asked by <strong><%= question.username %></strong> · <%= question.created_at %></p>
   <div class="card post-body"><%= question.body %></div>
+  <% if (currentUser) { %>
+    <p class="discuss-link">
+      Want to talk about this question instead of answering it?
+      <a href="/board/new?question_id=<%= question.question_id %>">Discuss this on the board</a>
+    </p>
+  <% } %>
 
   <% if (currentUser && currentUser.id === question.uid_user) { %>
     <div class="post-actions">

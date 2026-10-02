@@ -54,6 +54,17 @@ table, `Qa1_board_posts`:
 To turn it on: back up in phpMyAdmin, run `npm run migrate:up` in the Replit
 Shell, then restart. The SQL is in `migrations/`, and the rules are in `lib/board.js`.
 
+## Sample data (for a test database)
+
+`npm run seed` adds 10 sample users, 10 questions with answers, and 9 board
+posts with replies (including an edited post, a deleted post, a closed study
+group and a linked question that was deleted). Every sample user's password is
+`password123`, so you can log in as, for example, `maya_r`.
+
+Run it only on a **test** database: board posts can never be deleted, and
+users who wrote board posts can't be deleted either. The script asks you to
+type the database name and refuses to run twice.
+
 ## How to learn from the code
 
 1. Start with `db.js`: it creates one connection pool and exposes `execute` and `withTransaction`.

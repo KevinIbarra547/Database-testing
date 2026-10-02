@@ -47,7 +47,7 @@ async function findPost(id) {
 }
 
 function renderForm(res, status, data) {
-  return res.status(status).render("board/form", { error: null, ...data });
+  return res.status(status).render("board/form", { error: null, linked_question: null, ...data });
 }
 
 router.get(
@@ -72,16 +72,39 @@ router.get(
   }),
 );
 
-router.get("/board/new", requireLogin, (req, res) => {
-  renderForm(res, 200, {
-    title: "New board post",
-    mode: "new",
-    is_reply: false,
-    action: "/board/new",
-    cancel_url: "/board",
-    form: { title: "", body: "", post_type: "discussion", link_url: "", event_at: "", question_id: "" },
-  });
-});
+router.get(
+  "/board/new",
+  requireLogin,
+  asyncHandler(async (req, res) => {
+    const form = { title: "", body: "", post_type: "discussion", link_url: "", event_at: "", question_id: "" };
+    const formPage = {
+      title: "New board post",
+      mode: "new",
+      is_reply: false,
+      action: "/board/new",
+      cancel_url: "/board",
+      form,
+    };
+
+    // "Discuss this on the board" links here with ?question_id=12.
+    const questionId = parseId(req.query.question_id);
+    if (!questionId) return renderForm(res, 200, formPage);
+    try {
+      const [questions] = await execute(
+        "SELECT question_id, title FROM Qa1_questions WHERE question_id = ?",
+        [questionId],
+      );
+      const question = questions[0];
+      if (!question) return renderForm(res, 200, formPage);
+      form.question_id = String(question.question_id);
+      form.title = `Discussing: ${question.title}`.slice(0, 150);
+      formPage.cancel_url = `/questions/${question.question_id}`;
+      renderForm(res, 200, { ...formPage, linked_question: question });
+    } catch (error) {
+      renderDatabaseError(res, error, "board/form", formPage);
+    }
+  }),
+);
 
 router.post(
   "/board/new",
