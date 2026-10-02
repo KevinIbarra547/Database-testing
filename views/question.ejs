@@ -2,7 +2,11 @@
 <article class="question-page">
   <p class="eyebrow">Question</p>
   <h1><%= question.title %></h1>
-  <p class="meta">Asked by <strong><%= question.username %></strong> · <%= question.created_at %></p>
+  <p class="meta">
+    <%- include("partials/avatar", { name: question.username }) %>
+    Asked by <strong><%= question.username %></strong> ·
+    <time datetime="<%= question.created_at %>" title="<%= question.created_at %>"><%= timeAgo(question.age_seconds, question.created_at) %></time>
+  </p>
   <div class="card post-body"><%= question.body %></div>
   <% if (currentUser) { %>
     <p class="discuss-link">
@@ -28,7 +32,11 @@
     <% answers.forEach((answer) => { %>
       <article class="card answer-card">
         <div class="post-body"><%= answer.body %></div>
-        <p class="meta">Answered by <strong><%= answer.username %></strong> · <%= answer.created_at %></p>
+        <p class="meta">
+          <%- include("partials/avatar", { name: answer.username }) %>
+          Answered by <strong><%= answer.username %></strong> ·
+          <time datetime="<%= answer.created_at %>" title="<%= answer.created_at %>"><%= timeAgo(answer.age_seconds, answer.created_at) %></time>
+        </p>
         <% if (currentUser && currentUser.id === answer.uid_user) { %>
           <div class="post-actions">
             <a class="button secondary small" href="/answers/<%= answer.answer_id %>/edit">Edit</a>

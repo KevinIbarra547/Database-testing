@@ -2,6 +2,7 @@ const path = require("path");
 const express = require("express");
 const session = require("express-session");
 const { getConfigurationMessage, isConfigured } = require("./db");
+const { avatarColor, timeAgo } = require("./lib/format");
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5000;
@@ -9,6 +10,8 @@ const PORT = Number(process.env.PORT) || 5000;
 app.set("trust proxy", 1);
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
+app.locals.timeAgo = timeAgo;
+app.locals.avatarColor = avatarColor;
 app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, "public")));
 app.use(

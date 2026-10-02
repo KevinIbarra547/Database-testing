@@ -19,7 +19,8 @@ const router = express.Router();
 
 const POST_COLUMNS = `p.post_id, p.uid_user, p.parent_id, p.question_id, p.linked_question_title,
   p.post_type, p.status, p.title, p.body, p.original_title, p.original_body, p.edit_count,
-  p.link_url, p.event_at, p.created_at, p.updated_at, p.deleted_at`;
+  p.link_url, p.event_at, p.created_at,
+  TIMESTAMPDIFF(SECOND, p.created_at, NOW()) AS age_seconds, p.updated_at, p.deleted_at`;
 
 function notAllowed(res, message) {
   return res.status(403).render("error", { title: "Not allowed", error: message });
@@ -58,6 +59,7 @@ router.get(
       // so the number can never get out of date.
       const [rows] = await execute(
         `SELECT p.post_id, p.post_type, p.status, p.title, p.event_at, p.created_at,
+                TIMESTAMPDIFF(SECOND, p.created_at, NOW()) AS age_seconds,
                 p.deleted_at, u.Uname AS username,
                 (SELECT COUNT(*) FROM Qa1_board_posts r WHERE r.parent_id = p.post_id) AS reply_count
          FROM Qa1_board_posts p

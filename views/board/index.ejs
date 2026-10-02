@@ -31,7 +31,11 @@
             <p class="board-event">Meets: <%= post.event_at.slice(0, 16) %></p>
           <% } %>
           <p class="meta">
-            <% if (!post.is_deleted) { %>Posted by <strong><%= post.username %></strong> · <% } %><%= post.created_at %>
+            <% if (!post.is_deleted) { %>
+              <%- include("../partials/avatar", { name: post.username }) %>
+              Posted by <strong><%= post.username %></strong> ·
+            <% } %>
+            <time datetime="<%= post.created_at %>" title="<%= post.created_at %>"><%= timeAgo(post.age_seconds, post.created_at) %></time>
           </p>
         </div>
         <div class="answer-count">

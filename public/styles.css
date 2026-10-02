@@ -99,3 +99,13 @@ code { overflow-wrap: anywhere; }
   main.container { padding-top: 2rem; }
 }.guide-note { margin: -1rem 0 2rem; }
 .discuss-link { color: var(--muted); font-size: .92rem; margin: 0 0 .5rem; }
+.avatar {
+  display: inline-grid; place-items: center; width: 1.5rem; height: 1.5rem;
+  border-radius: 50%; color: #fff; font-size: .75rem; font-weight: 800;
+  vertical-align: middle; margin-right: .3rem;
+}
+.avatar-0 { background: #2f6fde; } .avatar-1 { background: #1d8a52; }
+.avatar-2 { background: #b4541b; } .avatar-3 { background: #7a4bc9; }
+.avatar-4 { background: #c23a62; } .avatar-5 { background: #0f7c8c; }
+.answer-count.has-answers strong, .answer-count.has-answers span { color: var(--success); }
+.answer-count.has-answers { border: 2px solid var(--success); border-radius: .6rem; padding: .3rem .5rem; }

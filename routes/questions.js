@@ -14,6 +14,7 @@ router.get(
       // Join users and answers so the home page can show authors and counts.
       const [questions] = await execute(
         `SELECT q.question_id, q.title, q.body, q.created_at,
+                TIMESTAMPDIFF(SECOND, q.created_at, NOW()) AS age_seconds,
                 u.Uname AS username, COUNT(a.answer_id) AS answer_count
          FROM Qa1_questions q
          JOIN Qa1_users u ON u.uid_user = q.uid_user
@@ -69,6 +70,7 @@ router.get(
       // Load one question and its answers separately to keep each query readable.
       const [questions] = await execute(
         `SELECT q.question_id, q.uid_user, q.title, q.body, q.created_at,
+                TIMESTAMPDIFF(SECOND, q.created_at, NOW()) AS age_seconds,
                 u.Uname AS username
          FROM Qa1_questions q
          JOIN Qa1_users u ON u.uid_user = q.uid_user
@@ -80,6 +82,7 @@ router.get(
 
       const [answers] = await execute(
         `SELECT a.answer_id, a.uid_user, a.body, a.created_at,
+                TIMESTAMPDIFF(SECOND, a.created_at, NOW()) AS age_seconds,
                 u.Uname AS username
          FROM Qa1_answers a
          JOIN Qa1_users u ON u.uid_user = a.uid_user

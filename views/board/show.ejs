@@ -9,7 +9,9 @@
   <% } else { %>
     <h1><%= post.title %></h1>
     <p class="meta">
-      Posted by <strong><%= post.username %></strong> · <%= post.created_at %>
+      <%- include("../partials/avatar", { name: post.username }) %>
+      Posted by <strong><%= post.username %></strong> ·
+      <time datetime="<%= post.created_at %>" title="<%= post.created_at %>"><%= timeAgo(post.age_seconds, post.created_at) %></time>
       <% if (post.edit_count > 0) { %> · <span class="board-edited">Edited</span><% } %>
     </p>
 
@@ -73,7 +75,9 @@
         <% } else { %>
           <div class="post-body"><%= reply.body %></div>
           <p class="meta">
-            Replied by <strong><%= reply.username %></strong> · <%= reply.created_at %>
+            <%- include("../partials/avatar", { name: reply.username }) %>
+            Replied by <strong><%= reply.username %></strong> ·
+            <time datetime="<%= reply.created_at %>" title="<%= reply.created_at %>"><%= timeAgo(reply.age_seconds, reply.created_at) %></time>
             <% if (reply.edit_count > 0) { %> · <span class="board-edited">Edited</span><% } %>
           </p>
           <% if (reply.edit_count > 0) { %>

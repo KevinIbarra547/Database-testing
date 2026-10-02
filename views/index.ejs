@@ -26,9 +26,13 @@
         <div class="question-card-main">
           <h2><a href="/questions/<%= question.question_id %>"><%= question.title %></a></h2>
           <p class="excerpt"><%= question.body.length > 180 ? question.body.slice(0, 180) + "…" : question.body %></p>
-          <p class="meta">Asked by <strong><%= question.username %></strong> · <%= question.created_at %></p>
+          <p class="meta">
+            <%- include("partials/avatar", { name: question.username }) %>
+            Asked by <strong><%= question.username %></strong> ·
+            <time datetime="<%= question.created_at %>" title="<%= question.created_at %>"><%= timeAgo(question.age_seconds, question.created_at) %></time>
+          </p>
         </div>
-        <div class="answer-count">
+        <div class="answer-count<%= question.answer_count > 0 ? " has-answers" : "" %>">
           <strong><%= question.answer_count %></strong>
           <span><%= question.answer_count === 1 ? "answer" : "answers" %></span>
         </div>
