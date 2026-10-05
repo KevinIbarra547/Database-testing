@@ -8,7 +8,7 @@ pull request. Don't start a phase until the one before it is merged.
 |---|---|---|---|
 | 1 | Question numbers ("#12") everywhere, and "#12" in the search box | None | — |
 | 2 | Up/down votes on questions and answers | **One migration: two new tables** | Kevin |
-| 3 | Q&A safety upgrade: deleting hides instead of erasing, one edit with the original kept, database lock | **Four migrations, two of them change existing tables** | Kevin |
+| 3 | Board topics and a related-posts dropdown | **One migration: two new tables** | Kevin |
 
 Every query and code file in phases 1 and 2 was run against a copy of the
 database (the 3 original tables, the board, and the sample data) before it was
@@ -449,7 +449,6 @@ And in `main()`, right after `await checkBoard(a, b, anon, questionId);`, add:
   await checkVotes(a, b, anon);
 ```
 
-(Phase 3 changes the last check in this function on purpose, see 3.9a.)
 
 ### Phase 2 checklist
 - [ ] `npm run migrate:status` shows the votes migration as applied on the test database.
@@ -473,697 +472,557 @@ The first three were reproduced while testing this plan.
 
 ---
 
-## Phase 3: Q&A safety upgrade (changes the original tables)
+## Phase 3: Board topics and related posts
 
-**Decided by Kevin:** option A, and changing the original tables is approved
-for this test site. This is an intentional change from the original spec,
-which said not to alter the tables.
+**Decided by Kevin:** topic tags (option B), board posts only, a dropdown of
+related posts. The earlier "Q&A safety upgrade" idea is **not** being built.
 
 ### What users get
 
-Questions and answers work the way board posts already do:
+- **Topics when posting:** a "Topics" box on the new-post form. Type up to
+  **3** topics separated by commas (`sql, joins, quiz-prep`). The most used
+  topics are suggested under the box.
+- **Topic tags:** each post shows its topics as tags (`#sql`). A tag opens
+  `/board/topic/sql`, which lists every post with that topic.
+- **Related posts dropdown:** under each post, a "Related posts (4)" dropdown,
+  closed until clicked. It lists every other post that shares a topic, the
+  ones sharing the **most** topics first, each with which topics it shares.
+  Pick one to open it.
+- **Changing topics:** the author can change a post's topics anytime with
+  "Change topics". This doesn't use up the post's one edit, because topics
+  aren't the post's text.
 
-| Today | After phase 3 |
-|---|---|
-| Deleting a question **permanently erases** it, every answer under it, and their votes (`ON DELETE CASCADE`) | Deleting **hides** the question: its page says "This question was deleted by its author" and **its answers stay** |
-| Deleting an answer erases it | The answer shows "This answer was deleted by its author" |
-| Editing overwrites the old text forever | One edit each; the original text is kept and shown under **View original** |
-| phpMyAdmin can delete anything | The database **refuses** to delete questions and answers (like the board) |
+Replies don't have topics. Deleted posts don't show related posts and are never suggested.
 
-Deleted questions no longer appear on the home page or in the feed, and
-deleted answers don't count in answer totals. Nobody can answer, edit or vote
-on a deleted question or answer.
+### The database change: one migration, two new tables
 
-### The four migrations, and why they run in this order
+Nothing existing changes. `Qa1_board_posts` and the original tables stay as they are.
 
-| Step | File | What it does | Old code still works? |
-|---|---|---|---|
-| 3.1 | `202610050900_questions_keep_history.sql` | Adds `original_title`, `original_body`, `edit_count`, `deleted_at` to `Qa1_questions` | ✅ Yes (tested: every check passed) |
-| 3.2 | `202610050901_answers_keep_history.sql` | Adds `original_body`, `edit_count`, `deleted_at` to `Qa1_answers` | ✅ Yes (same test) |
-| — | *(code change, below)* | Delete becomes "hide", edits keep the original | — |
-| 3.3 | `202610050902_questions_no_delete_trigger.sql` | MySQL refuses `DELETE` on questions | ❌ **No**: with the old code, 4 checks failed |
-| 3.4 | `202610050903_answers_no_delete_trigger.sql` | MySQL refuses `DELETE` on answers | ❌ No |
+| Table | One row per | Columns |
+|---|---|---|
+| `Qa1_topics` | topic name | `topic_id`, `name` (unique, like `joins`), `created_at` |
+| `Qa1_board_post_topics` | post + topic pair | `post_id`, `topic_id` (primary key: both together) |
 
-This is the **expand → switch → lock** pattern:
+This is a **many-to-many** relationship: one post has many topics, and one
+topic belongs to many posts. That needs the second "link" table in the middle.
 
-1. **Expand:** 3.1 and 3.2 only *add* columns. Each new column is empty
-   (`NULL`) or has a default (`edit_count = 0`), and the old code only reads
-   the columns it names, so nothing notices. These can go live first, even
-   days before the code.
-2. **Switch:** deploy the new code that uses the new columns.
-3. **Lock:** 3.3 and 3.4 make real deletes impossible. These must come
-   **last**. The old code's Delete button really runs `DELETE`, so locking
-   first breaks it. That was tested: 4 checks failed with "Questions cannot
-   be deleted".
-
-Each file holds one statement, so if one fails, nothing in it was applied and
-it can simply be run again after fixing the cause.
+**How "related" is worked out.** For a post, look at its topics ("mine"),
+find every *other* post linked to one of those topics ("other"), and count
+how many topics each one shares. That's a table joined to itself, plus
+`GROUP BY` and `COUNT`. The full query is in `lib/topics.js` below.
 
 ### 3.0 `replit.md` "Current task" for this phase
 
 ```md
 ## Current task
 
-Phase 3 of `docs/next-features-plan.md`: the Q&A safety upgrade. Do only
-Phase 3, then stop. Also follow `AGENTS.md`.
+Phase 3 of `docs/next-features-plan.md`: board topics and related posts.
+Do only Phase 3, then stop. Also follow `AGENTS.md`.
 
 Exceptions to the "Never" list, for this phase only:
-- Create exactly the four migration files in Phase 3, with the exact content
-  from the plan. Don't run them; Kevin runs them, in the order the plan gives.
-- Qa1_questions and Qa1_answers are changed by those migrations (Kevin approved).
-- Questions and answers are never deleted with DELETE any more: "delete" sets
-  deleted_at. Don't touch the trg_questions_no_delete or trg_answers_no_delete
-  triggers.
+- Create exactly one migration file, `migrations/202610060900_create_board_topics.sql`,
+  with the exact content from the plan. Don't run it; Kevin runs it.
+- `lib/topics.js` may DELETE rows from `Qa1_board_post_topics` (changing a
+  post's topics). No other DELETE anywhere; board posts are never deleted.
 ```
 
-### 3.1–3.4 The migration files (use exactly these)
+### 3.1 The migration (Kevin runs it)
 
-`migrations/202610050900_questions_keep_history.sql`:
+`migrations/202610060900_create_board_topics.sql`:
 
 ```sql
--- Phase 3, step 1 of 4 ("expand"): give questions the same safety as the board.
--- This CHANGES an original table (approved by Kevin for the test site).
+-- Topics for board posts, used to find related posts. This only ADDS two new
+-- tables; Qa1_board_posts and the original tables are not changed.
 --
---   original_title / original_body  the text from before the one allowed edit
---   edit_count                      0 or 1
---   deleted_at                      "soft delete": set instead of removing the row
+--   Qa1_topics             one row per topic name ("sql", "joins", "quiz-prep")
+--   Qa1_board_post_topics  one row per (post, topic) pair: a many-to-many link
 --
--- Every new column is NULL or has a default, so the current code keeps working
--- the moment this runs (tested: `npm run check` passed with no code changes).
--- One statement per file: if it fails, nothing changed and it can be re-run.
-ALTER TABLE Qa1_questions
-  ADD COLUMN original_title VARCHAR(150) NULL AFTER body,
-  ADD COLUMN original_body TEXT NULL AFTER original_title,
-  ADD COLUMN edit_count TINYINT NOT NULL DEFAULT 0 AFTER original_body,
-  ADD COLUMN deleted_at DATETIME NULL AFTER created_at;
+-- PRIMARY KEY (post_id, topic_id) stops the same topic being added twice to a post.
+-- The extra index (topic_id, post_id) makes "find every post with this topic" fast,
+-- which is what the related-posts query and the topic pages do.
+-- No ON DELETE rules: board posts are never deleted (see the board's trigger).
+-- Both use IF NOT EXISTS, so re-running after a half-finished attempt is safe.
+CREATE TABLE IF NOT EXISTS Qa1_topics (
+  topic_id INT NOT NULL AUTO_INCREMENT,
+  name VARCHAR(30) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (topic_id),
+  CONSTRAINT uq_topics_name UNIQUE (name)
+) ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS Qa1_board_post_topics (
+  post_id INT NOT NULL,
+  topic_id INT NOT NULL,
+  PRIMARY KEY (post_id, topic_id),
+  KEY idx_board_post_topics_topic (topic_id, post_id),
+  CONSTRAINT fk_board_post_topics_post FOREIGN KEY (post_id)
+    REFERENCES Qa1_board_posts (post_id),
+  CONSTRAINT fk_board_post_topics_topic FOREIGN KEY (topic_id)
+    REFERENCES Qa1_topics (topic_id)
+) ENGINE=InnoDB;
 ```
 
-`migrations/202610050901_answers_keep_history.sql`:
+**Kevin, in this order:** back up the test database, `npm run migrate:status`
+(it should list this file as pending), `npm run migrate:up`, restart, run
+`npm run check`. After the pull request is merged, do the same on the real
+database. **The migration runs before the new code**: the code reads these
+tables, and the tables alone are harmless to the old code.
 
-```sql
--- Phase 3, step 2 of 4 ("expand"): the same for answers.
--- This CHANGES an original table (approved by Kevin for the test site).
--- Every new column is NULL or has a default, so the current code keeps working.
-ALTER TABLE Qa1_answers
-  ADD COLUMN original_body TEXT NULL AFTER body,
-  ADD COLUMN edit_count TINYINT NOT NULL DEFAULT 0 AFTER original_body,
-  ADD COLUMN deleted_at DATETIME NULL AFTER created_at;
-```
+**Undo plan:** a *new* migration with `DROP TABLE Qa1_board_post_topics;` then
+`DROP TABLE Qa1_topics;` (in that order, because of the foreign key). That
+removes all topics; posts are untouched.
 
-`migrations/202610050902_questions_no_delete_trigger.sql`:
-
-```sql
--- Phase 3, step 3 of 4 ("lock"): MySQL refuses to DELETE a question, even from
--- phpMyAdmin. Run this ONLY AFTER the soft-delete code is live: the old code
--- really deletes questions, and this lock would make its Delete button fail.
---
--- Because questions are never deleted any more, ON DELETE CASCADE from
--- questions to answers and votes never runs: answers and votes are kept.
--- In its own file because some hosts don't allow triggers. If it fails with
--- "access denied" or "SUPER privilege", the site still works without the lock.
-CREATE TRIGGER trg_questions_no_delete
-BEFORE DELETE ON Qa1_questions
-FOR EACH ROW
-SIGNAL SQLSTATE '45000'
-  SET MESSAGE_TEXT = 'Questions cannot be deleted. Set deleted_at instead.';
-```
-
-`migrations/202610050903_answers_no_delete_trigger.sql`:
-
-```sql
--- Phase 3, step 4 of 4 ("lock"): the same for answers. Same rules as the
--- question lock: run it only after the soft-delete code is live.
-CREATE TRIGGER trg_answers_no_delete
-BEFORE DELETE ON Qa1_answers
-FOR EACH ROW
-SIGNAL SQLSTATE '45000'
-  SET MESSAGE_TEXT = 'Answers cannot be deleted. Set deleted_at instead.';
-```
-
-**Kevin, in this order** (test database first, then the real one after the
-pull request is merged):
-
-1. Back up the database in phpMyAdmin (Export).
-2. Temporarily move the two `*_no_delete_trigger.sql` files out of
-   `migrations/` (for example to `docs/`), or have the agent add them in a
-   second commit. Then `npm run migrate:up` runs **only 3.1 and 3.2**.
-3. Run `npm run check` with the **old** code: it should still say ALL PASSED.
-4. Pull the new code, restart, run `npm run check`.
-5. Put the two trigger files back, run `npm run migrate:up` again (3.3 and 3.4), restart, run `npm run check`.
-
-On the real database, the simplest safe order is: merge, pull, back up, run
-`npm run migrate:up` (it applies all four in name order), restart right away.
-The few seconds between the triggers being added and the restart are the only
-moment the old Delete button would fail, and nobody is likely to press it.
-
-### 3.5 `routes/answers.js` (replace the whole file)
-
-The class feed plan doesn't touch this file, so it can be replaced whole.
+### 3.2 `lib/topics.js` (new file, use exactly this)
 
 ```js
-const express = require("express");
+// Topics on board posts, and finding related posts through shared topics.
+// Tables: Qa1_topics (the names) and Qa1_board_post_topics (which post has which topic).
 const { execute } = require("../db");
-const { asyncHandler, clean, renderDatabaseError, requireLogin } = require("../lib/helpers");
-const { validateAnswer } = require("../lib/validation");
 
-const router = express.Router();
+const MAX_TOPICS = 3;
+const MAX_RELATED = 10;
 
-// Checks that this user may edit this answer right now.
-// Returns an error message, or null when editing is allowed.
-function answerEditBlocker(answer, user) {
-  if (answer.uid_user !== user.id) return "You can only edit your own answers.";
-  if (answer.deleted_at !== null) return "Deleted answers can't be edited.";
-  if (answer.edit_count >= 1) return "You've already used your one edit on this answer.";
-  return null;
+// "SQL, Quiz Prep ,sql" -> { names: ["sql", "quiz-prep"] }, or { error: "..." }.
+// Lowercase, spaces become hyphens, duplicates removed. An empty box is allowed.
+function parseTopics(input) {
+  const names = [];
+  for (const part of String(input || "").split(",")) {
+    const name = part.trim().toLowerCase().replace(/\s+/g, "-");
+    if (!name) continue;
+    if (!/^[a-z0-9][a-z0-9-]{0,29}$/.test(name)) {
+      return { error: `"${part.trim()}" isn't a valid topic. Use letters, numbers and hyphens, up to 30 characters.` };
+    }
+    if (!names.includes(name)) names.push(name);
+  }
+  if (names.length > MAX_TOPICS) return { error: `Use at most ${MAX_TOPICS} topics.` };
+  return { names };
 }
 
+// Makes sure every topic name has a row, and returns their ids in the same order.
+// Call this BEFORE the transaction: each INSERT runs and commits on its own, so
+// the lock on a new topic is released at once. (Creating topics inside the post's
+// transaction deadlocked when several people posted the same new topic at once.)
+async function ensureTopics(names) {
+  const ids = [];
+  for (const name of names) {
+    // Creates the topic the first time anyone uses it; later uses find the same row.
+    await execute(
+      "INSERT INTO Qa1_topics (name) VALUES (?) ON DUPLICATE KEY UPDATE topic_id = topic_id",
+      [name],
+    );
+    const [rows] = await execute("SELECT topic_id FROM Qa1_topics WHERE name = ?", [name]);
+    ids.push(rows[0].topic_id);
+  }
+  return ids;
+}
+
+// Links a NEW post to its topics. Call it inside the post's withTransaction, so
+// the post and its links are saved together or not at all.
+// (No DELETE first: on a new post there's nothing to delete, and that empty
+// DELETE still locked part of the index and deadlocked with other new posts.)
+async function linkTopics(connection, postId, topicIds) {
+  for (const topicId of topicIds) {
+    await connection.execute(
+      "INSERT INTO Qa1_board_post_topics (post_id, topic_id) VALUES (?, ?)",
+      [postId, topicId],
+    );
+  }
+}
+
+// Changes the topics of an EXISTING post: removes its old links, adds the new ones.
+// Call it inside withTransaction. Only links are removed; posts and topics never are.
+async function replaceTopics(connection, postId, topicIds) {
+  await connection.execute("DELETE FROM Qa1_board_post_topics WHERE post_id = ?", [postId]);
+  await linkTopics(connection, postId, topicIds);
+}
+
+// { 12: ["joins", "sql"], 15: ["quiz-prep"] } for a list of post ids, in one query.
+async function loadTopics(postIds) {
+  const byPost = {};
+  if (postIds.length === 0) return byPost;
+  const placeholders = postIds.map(() => "?").join(", ");
+  const [rows] = await execute(
+    `SELECT pt.post_id, t.name
+     FROM Qa1_board_post_topics pt
+     JOIN Qa1_topics t ON t.topic_id = pt.topic_id
+     WHERE pt.post_id IN (${placeholders})
+     ORDER BY t.name`,
+    postIds,
+  );
+  for (const row of rows) (byPost[row.post_id] = byPost[row.post_id] || []).push(row.name);
+  return byPost;
+}
+
+// Other posts that share at least one topic with this post, most shared topics first.
+// "mine" is this post's topics; "other" is every other post with one of those topics.
+// GROUP BY + COUNT turns the matches into one row per post with a score.
+async function relatedPosts(postId) {
+  const [rows] = await execute(
+    `SELECT p.post_id, p.title, p.post_type,
+            COUNT(*) AS shared_count,
+            GROUP_CONCAT(t.name ORDER BY t.name SEPARATOR ', ') AS shared_topics
+     FROM Qa1_board_post_topics mine
+     JOIN Qa1_board_post_topics other
+       ON other.topic_id = mine.topic_id AND other.post_id <> mine.post_id
+     JOIN Qa1_board_posts p ON p.post_id = other.post_id
+     JOIN Qa1_topics t ON t.topic_id = mine.topic_id
+     WHERE mine.post_id = ? AND p.deleted_at IS NULL
+     GROUP BY p.post_id, p.title, p.post_type, p.created_at
+     ORDER BY shared_count DESC, p.created_at DESC, p.post_id DESC
+     LIMIT ?`,
+    [postId, String(MAX_RELATED)],
+  );
+  return rows;
+}
+
+// The most used topics, shown as suggestions under the topics box.
+async function popularTopics() {
+  const [rows] = await execute(
+    `SELECT t.name, COUNT(*) AS uses
+     FROM Qa1_topics t
+     JOIN Qa1_board_post_topics pt ON pt.topic_id = t.topic_id
+     GROUP BY t.topic_id, t.name
+     ORDER BY uses DESC, t.name
+     LIMIT 12`,
+  );
+  return rows.map((row) => row.name);
+}
+
+module.exports = {
+  MAX_TOPICS,
+  ensureTopics,
+  linkTopics,
+  loadTopics,
+  parseTopics,
+  popularTopics,
+  relatedPosts,
+  replaceTopics,
+};
+```
+
+### 3.3 `routes/board.js`
+
+The class feed plan also changes this file (times and avatars), so these are
+additions to make, not a whole new file.
+
+**a.** Below the existing `require("../lib/board")` lines:
+
+```js
+const {
+  ensureTopics,
+  linkTopics,
+  loadTopics,
+  parseTopics,
+  popularTopics,
+  relatedPosts,
+  replaceTopics,
+} = require("../lib/topics");
+```
+
+**b. Board list (`GET /board`).** Replace the `res.render("board/index", ...)` line with:
+
+```js
+      const posts = rows.map(shapeListItem);
+      // One extra query loads the topics for every post on the page.
+      const topics = await loadTopics(posts.map((post) => post.post_id));
+      posts.forEach((post) => { post.topics = topics[post.post_id] || []; });
+      res.render("board/index", { title: "Class board", posts, topic: null });
+```
+
+**c. New post (`GET /board/new`).**
+- Add `topics: ""` to the `form` object.
+- At the start of the `try` block, add
+  `formPage.popular_topics = await popularTopics();`. The handler needs a
+  `try` around everything that touches the database; move the existing
+  `?question_id=` lookup inside it.
+- In `renderForm`, add `popular_topics: []` to the defaults:
+  `{ error: null, linked_question: null, popular_topics: [], ...data }`.
+
+**d. New post (`POST /board/new`).**
+- Add `topics: clean(req.body.topics),` to the `form` object.
+- Right after the existing `validateNewPost` check:
+
+```js
+    const topics = parseTopics(form.topics);
+    if (topics.error) return renderForm(res, 400, { ...formPage, error: topics.error });
+```
+
+- First line inside `try`, **before** `withTransaction`:
+
+```js
+      // Topics are created first, outside the transaction (see ensureTopics).
+      const topicIds = await ensureTopics(topics.names);
+```
+
+- Inside the transaction, right before `return { postId: insert.insertId };`:
+
+```js
+        // Same transaction: the post and its topic links are saved together or not at all.
+        await linkTopics(connection, insert.insertId, topicIds);
+```
+
+**e. Post page (`renderPostPage`).**
+- Add a sixth parameter: `async function renderPostPage(req, res, postId, replyError = null, replyForm = { body: "" }, extra = {})`.
+- Right after `const post = shapePost(row, user);`, add these lines (they
+  replace the start of the existing `res.status(...).render("board/show", {` line):
+
+```js
+  const topics = (await loadTopics([postId]))[postId] || [];
+  // Deleted posts don't suggest related posts.
+  const related = post.is_deleted || topics.length === 0 ? [] : await relatedPosts(postId);
+  res.status(replyError || extra.topics_error ? 400 : 200).render("board/show", {
+```
+
+- At the end of the object passed to `render`, after `reply_form: replyForm,`:
+
+```js
+    topics,
+    related,
+    can_edit_topics: post.can_delete,
+    topics_error: null,
+    topics_form: topics.join(", "),
+    ...extra,
+```
+
+**f. Two new routes,** right above `module.exports = router;`:
+
+```js
 router.post(
-  "/questions/:id/answers",
+  "/board/:id/topics",
   requireLogin,
   asyncHandler(async (req, res) => {
-    const body = clean(req.body.body);
-    const validationError = validateAnswer(body);
-    if (validationError) return res.redirect(`/questions/${req.params.id}?error=answer`);
-
+    const postId = parseId(req.params.id);
+    if (!postId) return notFound(res);
+    const input = clean(req.body.topics);
     try {
-      // Deleted questions can't get new answers.
-      const [questions] = await execute(
-        "SELECT question_id FROM Qa1_questions WHERE question_id = ? AND deleted_at IS NULL",
-        [req.params.id],
-      );
-      if (!questions[0]) return res.status(404).render("404", { title: "Question not found" });
-      await execute(
-        "INSERT INTO Qa1_answers (question_id, uid_user, body) VALUES (?, ?, ?)",
-        [req.params.id, req.session.user.id, body],
-      );
-      res.redirect(`/questions/${req.params.id}`);
+      const row = await findPost(postId);
+      if (!row) return notFound(res);
+      // Only the author, only top-level posts (not replies), only while not deleted.
+      if (row.uid_user !== req.session.user.id || row.parent_id !== null || row.deleted_at !== null) {
+        return notAllowed(res, "You can only change the topics of your own posts.");
+      }
+      const topics = parseTopics(input);
+      if (topics.error) {
+        return await renderPostPage(req, res, postId, null, { body: "" }, { topics_error: topics.error, topics_form: input });
+      }
+      // Changing topics doesn't use up the post's one edit: topics aren't the post's text.
+      const topicIds = await ensureTopics(topics.names);
+      await withTransaction((connection) => replaceTopics(connection, postId, topicIds));
+      res.redirect(`/board/${postId}`);
     } catch (error) {
-      renderDatabaseError(res, error, "setup");
+      renderDatabaseError(res, error, "error", { title: "Class board" });
     }
   }),
 );
 
 router.get(
-  "/answers/:id/edit",
-  requireLogin,
+  "/board/topic/:name",
   asyncHandler(async (req, res) => {
+    const { names } = parseTopics(req.params.name);
+    if (!names || names.length !== 1) return notFound(res);
     try {
-      const [answers] = await execute(
-        `SELECT answer_id, question_id, uid_user, body, edit_count, deleted_at
-         FROM Qa1_answers WHERE answer_id = ?`,
-        [req.params.id],
+      // Every post with this topic, newest first. Deleted posts are left out.
+      const [rows] = await execute(
+        `SELECT p.post_id, p.post_type, p.status, p.title, p.event_at, p.created_at,
+                p.deleted_at, u.Uname AS username,
+                (SELECT COUNT(*) FROM Qa1_board_posts r WHERE r.parent_id = p.post_id) AS reply_count
+         FROM Qa1_board_post_topics pt
+         JOIN Qa1_topics t ON t.topic_id = pt.topic_id
+         JOIN Qa1_board_posts p ON p.post_id = pt.post_id
+         JOIN Qa1_users u ON u.uid_user = p.uid_user
+         WHERE t.name = ? AND p.deleted_at IS NULL
+         ORDER BY p.created_at DESC, p.post_id DESC`,
+        [names[0]],
       );
-      const answer = answers[0];
-      if (!answer) return res.status(404).render("404", { title: "Answer not found" });
-      const blocker = answerEditBlocker(answer, req.session.user);
-      if (blocker) return res.status(403).render("error", { title: "Not allowed", error: blocker });
-      res.render("edit-answer", { title: "Edit answer", answer, error: null });
+      const posts = rows.map(shapeListItem);
+      const topics = await loadTopics(posts.map((post) => post.post_id));
+      posts.forEach((post) => { post.topics = topics[post.post_id] || []; });
+      res.render("board/index", { title: `Topic: ${names[0]}`, posts, topic: names[0] });
     } catch (error) {
-      renderDatabaseError(res, error, "setup");
+      renderDatabaseError(res, error, "error", { title: "Class board" });
     }
   }),
 );
 
-router.post(
-  "/answers/:id/edit",
-  requireLogin,
-  asyncHandler(async (req, res) => {
-    const body = clean(req.body.body);
-    const validationError = validateAnswer(body);
-    try {
-      const [answers] = await execute(
-        `SELECT answer_id, question_id, uid_user, body, edit_count, deleted_at
-         FROM Qa1_answers WHERE answer_id = ?`,
-        [req.params.id],
-      );
-      const answer = answers[0];
-      if (!answer) return res.status(404).render("404", { title: "Answer not found" });
-      const blocker = answerEditBlocker(answer, req.session.user);
-      if (blocker) return res.status(403).render("error", { title: "Not allowed", error: blocker });
-      if (validationError) {
-        return res.status(400).render("edit-answer", {
-          title: "Edit answer",
-          answer: { ...answer, body },
-          error: validationError,
-        });
-      }
-
-      // One statement: the old text is copied to original_body before it is
-      // replaced, and "edit_count = 0" stops a second edit.
-      const [result] = await execute(
-        `UPDATE Qa1_answers
-         SET original_body = body, body = ?, edit_count = edit_count + 1
-         WHERE answer_id = ? AND uid_user = ? AND edit_count = 0 AND deleted_at IS NULL`,
-        [body, req.params.id, req.session.user.id],
-      );
-      if (result.affectedRows === 0) {
-        return res.status(403).render("error", {
-          title: "Not allowed",
-          error: "You've already used your one edit on this answer.",
-        });
-      }
-      res.redirect(`/questions/${answer.question_id}#answer-${answer.answer_id}`);
-    } catch (error) {
-      renderDatabaseError(res, error, "edit-answer", {
-        answer: { answer_id: req.params.id, body },
-      });
-    }
-  }),
-);
-
-router.post(
-  "/answers/:id/delete",
-  requireLogin,
-  asyncHandler(async (req, res) => {
-    try {
-      const [answers] = await execute(
-        "SELECT question_id FROM Qa1_answers WHERE answer_id = ? AND uid_user = ?",
-        [req.params.id, req.session.user.id],
-      );
-      const answer = answers[0];
-      if (!answer) {
-        return res.status(403).render("error", {
-          title: "Not allowed",
-          error: "You can only delete your own answers.",
-        });
-      }
-      // Soft delete: the answer stays in the database and shows as deleted.
-      await execute(
-        `UPDATE Qa1_answers SET deleted_at = NOW()
-         WHERE answer_id = ? AND uid_user = ? AND deleted_at IS NULL`,
-        [req.params.id, req.session.user.id],
-      );
-      res.redirect(`/questions/${answer.question_id}#answer-${req.params.id}`);
-    } catch (error) {
-      renderDatabaseError(res, error, "setup");
-    }
-  }),
-);
-
-module.exports = router;
 ```
 
-### 3.6 `routes/questions.js`
+### 3.4 Pages
 
-**a. Two helpers.** Add them right below `const router = express.Router();`:
-
-```js
-// Clears the text of a soft-deleted question or answer before it reaches a page.
-function hideIfDeleted(row, fields) {
-  if (!row.deleted_at) return;
-  for (const field of fields) row[field] = null;
-}
-
-// Checks that this user may edit this question right now.
-// Returns an error message, or null when editing is allowed.
-function questionEditBlocker(question, user) {
-  if (question.uid_user !== user.id) return "You can only edit your own questions.";
-  if (question.deleted_at !== null) return "Deleted questions can't be edited.";
-  if (question.edit_count >= 1) return "You've already used your one edit on this question.";
-  return null;
-}
-```
-
-**b. Home query (`GET /`).** Two changes, everything else stays (search,
-tabs, paging, `age_seconds`, `score`):
-
-- The answers join only counts answers that aren't deleted:
-  `LEFT JOIN Qa1_answers a ON a.question_id = q.question_id AND a.deleted_at IS NULL`
-- Deleted questions are hidden. Put this condition first in the `WHERE`:
-  `WHERE q.deleted_at IS NULL AND (? = '' OR q.title LIKE ? OR q.body LIKE ?)`
-
-**c. Question page (`GET /questions/:id`).**
-
-- In the question query, add this line right after `q.created_at,`:
-  `q.original_title, q.original_body, q.edit_count, q.deleted_at,`
-- In the answers query, add this line right after `a.created_at,`:
-  `a.original_body, a.edit_count, a.deleted_at,`
-- Replace the start of the `res.render("question", {` call with:
-
-```js
-      // Deleted posts never send their text to the page.
-      hideIfDeleted(question, ["title", "body", "original_title", "original_body"]);
-      answers.forEach((answer) => hideIfDeleted(answer, ["body", "original_body"]));
-      res.render("question", {
-        title: question.deleted_at ? "Deleted question" : question.title,
-        question,
-        answers,
-```
-
-**d. Edit and delete.** Replace the three handlers, `GET /questions/:id/edit`,
-`POST /questions/:id/edit` and `POST /questions/:id/delete`, with:
-
-```js
-router.get(
-  "/questions/:id/edit",
-  requireLogin,
-  asyncHandler(async (req, res) => {
-    try {
-      const [questions] = await execute(
-        `SELECT question_id, uid_user, title, body, edit_count, deleted_at
-         FROM Qa1_questions WHERE question_id = ?`,
-        [req.params.id],
-      );
-      const question = questions[0];
-      if (!question) return res.status(404).render("404", { title: "Question not found" });
-      const blocker = questionEditBlocker(question, req.session.user);
-      if (blocker) return res.status(403).render("error", { title: "Not allowed", error: blocker });
-      res.render("edit-question", { title: "Edit question", question, error: null });
-    } catch (error) {
-      renderDatabaseError(res, error, "setup");
-    }
-  }),
-);
-
-router.post(
-  "/questions/:id/edit",
-  requireLogin,
-  asyncHandler(async (req, res) => {
-    const form = { title: clean(req.body.title), body: clean(req.body.body) };
-    const validationError = validateQuestion(form);
-    if (validationError) {
-      return res.status(400).render("edit-question", {
-        title: "Edit question",
-        question: { question_id: req.params.id, ...form },
-        error: validationError,
-      });
-    }
-
-    try {
-      const [questions] = await execute(
-        "SELECT uid_user, edit_count, deleted_at FROM Qa1_questions WHERE question_id = ?",
-        [req.params.id],
-      );
-      const question = questions[0];
-      if (!question) return res.status(404).render("404", { title: "Question not found" });
-      const blocker = questionEditBlocker(question, req.session.user);
-      if (blocker) return res.status(403).render("error", { title: "Not allowed", error: blocker });
-
-      // One statement does the whole edit. MySQL runs SET from left to right, so
-      // original_title/original_body get the OLD text before it is replaced.
-      // "edit_count = 0" makes a second edit (or a double-click) change nothing.
-      const [result] = await execute(
-        `UPDATE Qa1_questions
-         SET original_title = title, original_body = body,
-             title = ?, body = ?, edit_count = edit_count + 1
-         WHERE question_id = ? AND uid_user = ? AND edit_count = 0 AND deleted_at IS NULL`,
-        [form.title, form.body, req.params.id, req.session.user.id],
-      );
-      if (result.affectedRows === 0) {
-        return res.status(403).render("error", {
-          title: "Not allowed",
-          error: "You've already used your one edit on this question.",
-        });
-      }
-      res.redirect(`/questions/${req.params.id}`);
-    } catch (error) {
-      renderDatabaseError(res, error, "edit-question", {
-        question: { question_id: req.params.id, ...form },
-      });
-    }
-  }),
-);
-
-router.post(
-  "/questions/:id/delete",
-  requireLogin,
-  asyncHandler(async (req, res) => {
-    try {
-      const [questions] = await execute(
-        "SELECT uid_user FROM Qa1_questions WHERE question_id = ?",
-        [req.params.id],
-      );
-      if (!questions[0]) return res.status(404).render("404", { title: "Question not found" });
-      if (questions[0].uid_user !== req.session.user.id) {
-        return res.status(403).render("error", {
-          title: "Not allowed",
-          error: "You can only delete your own questions.",
-        });
-      }
-      // Soft delete: the question stays in the database and shows as deleted.
-      // Its answers and votes are kept. The uid_user check is the real guard.
-      await execute(
-        `UPDATE Qa1_questions SET deleted_at = NOW()
-         WHERE question_id = ? AND uid_user = ? AND deleted_at IS NULL`,
-        [req.params.id, req.session.user.id],
-      );
-      res.redirect("/");
-    } catch (error) {
-      renderDatabaseError(res, error, "setup");
-    }
-  }),
-);
-```
-
-### 3.7 Votes, board and feed
-
-**`routes/votes.js`:** deleted posts count as "not found". Change the two
-`target` queries to:
-
-```js
-  // in QUESTION_SQL
-  target: "SELECT uid_user, question_id FROM Qa1_questions WHERE question_id = ? AND deleted_at IS NULL",
-  // in ANSWER_SQL
-  target: `SELECT a.uid_user, a.question_id FROM Qa1_answers a
-           JOIN Qa1_questions q ON q.question_id = a.question_id
-           WHERE a.answer_id = ? AND a.deleted_at IS NULL AND q.deleted_at IS NULL`,
-```
-
-**`routes/board.js`:** a hidden question counts as deleted for board links.
-Three small changes:
-
-| Where | Change |
-|---|---|
-| `renderPostPage`, the `LEFT JOIN Qa1_questions q ...` line | add `AND q.deleted_at IS NULL` to the end of the `ON` |
-| `POST /board/new`, the `SELECT title FROM Qa1_questions ...` | add `AND deleted_at IS NULL` before `LOCK IN SHARE MODE` |
-| `GET /board/new`, the `SELECT question_id, title FROM Qa1_questions ...` | add `AND deleted_at IS NULL` at the end |
-
-**`lib/board.js`, in `shapePost`:** replace the `question:` and
-`linked_question_deleted:` lines with:
-
-```js
-    // live_question_title is NULL when the linked question was deleted (soft or for real).
-    question: row.live_question_title !== null ? { question_id: row.question_id, title: row.live_question_title } : null,
-    linked_question_deleted: row.linked_question_title !== null && row.live_question_title === null,
-```
-
-(Before this phase, a deleted question set `question_id` to `NULL`. Now the
-question row stays, so `question_id` keeps its value, and the old check would
-have linked to a deleted question.)
-
-**`routes/feed.js`:** in `FEED_SQL`, on the **question** side of the `UNION ALL`:
-
-- the `reply_count` subquery gets `AND a.deleted_at IS NULL`
-- add `WHERE q.deleted_at IS NULL` after `JOIN Qa1_users u ON u.uid_user = q.uid_user`
-
-In `COUNTS_SQL`, the two question counts become:
-
-```sql
-    (SELECT COUNT(*) FROM Qa1_questions WHERE deleted_at IS NULL) AS questions,
-    (SELECT COUNT(*) FROM Qa1_questions q WHERE q.deleted_at IS NULL
-       AND NOT EXISTS (SELECT 1 FROM Qa1_answers a WHERE a.question_id = q.question_id AND a.deleted_at IS NULL)) AS unanswered,
-```
-
-### 3.8 Pages
-
-**`views/question.ejs`.** Four changes. Keep the time and avatar changes from
-the class feed plan wherever these snippets show `created_at` or a username.
-
-1. Replace the title, meta line, body and question vote buttons (everything
-   from `<h1>` down to just before the "Discuss this on the board" block) with
-   the block below. The "Discuss" block's opening line becomes
-   `<% if (currentUser && !question.deleted_at) { %>`.
+**`views/board/_topics.ejs` (new file):**
 
 ```ejs
-  <% if (question.deleted_at) { %>
-    <h1>Deleted question</h1>
-    <div class="card post-body muted">This question was deleted by its author. Its answers are still below.</div>
-  <% } else { %>
-    <h1><%= question.title %></h1>
-    <p class="meta">Asked by <strong><%= question.username %></strong> · <%= question.created_at %>
-      <% if (question.edit_count > 0) { %> · <em>Edited</em><% } %></p>
-    <div class="card post-body"><%= question.body %></div>
-    <% if (question.edit_count > 0) { %>
-      <details class="original-text">
-        <summary>View original</summary>
-        <p><strong><%= question.original_title %></strong></p>
-        <div class="post-body"><%= question.original_body %></div>
+<%# Topic tags for one post. Each links to that topic's page. Receives: topics (array of names) %>
+<% if (topics.length > 0) { %>
+  <p class="board-topics">
+    <% topics.forEach((name) => { %>
+      <a class="board-topic" href="/board/topic/<%= name %>">#<%= name %></a>
+    <% }) %>
+  </p>
+<% } %>
+```
+
+**`views/board/index.ejs`:**
+- Replace the hero text (from `<p class="eyebrow">Class board</p>` through the
+  `board-guide` paragraph) with this, so the same page also works as a topic page:
+
+```ejs
+    <p class="eyebrow">Class board</p>
+    <% if (topic) { %>
+      <h1>#<%= topic %></h1>
+      <p class="intro">Every board post about <%= topic %>. <a href="/board">Back to all posts</a></p>
+    <% } else { %>
+    <h1>Talk, plan, and share</h1>
+    <p class="intro">Start a discussion, organize a study group, or share a useful resource.</p>
+    <p class="muted board-guide">Answering someone's question? Post it as an answer on <a href="/">the question's page</a> so all the answers stay together.</p>
+    <% } %>
+```
+
+- In each post card, right above `<p class="meta">`:
+  `<% if (!post.is_deleted) { %><%- include("_topics", { topics: post.topics }) %><% } %>`
+
+**`views/board/show.ejs`:**
+- Right above the post body (`<div class="card post-body"><%= post.body %></div>`):
+  `<%- include("_topics", { topics }) %>`
+- Right above `<section class="answers-section">`, the dropdown and the
+  author's "Change topics" form:
+
+```ejs
+  <% if (!post.is_deleted) { %>
+    <%# The related-posts dropdown: closed until clicked, then pick a post to open. %>
+    <details class="board-related">
+      <summary>Related posts (<%= related.length %>)</summary>
+      <% if (topics.length === 0) { %>
+        <p class="muted">This post has no topics yet, so there's nothing to compare it with.</p>
+      <% } else if (related.length === 0) { %>
+        <p class="muted">No other posts share these topics yet.</p>
+      <% } else { %>
+        <ul>
+          <% related.forEach((item) => { %>
+            <li>
+              <a href="/board/<%= item.post_id %>"><%= item.title %></a>
+              <span class="muted">shares <%= item.shared_topics %></span>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+    </details>
+
+    <% if (can_edit_topics) { %>
+      <details class="board-topics-edit"<%= topics_error ? " open" : "" %>>
+        <summary>Change topics</summary>
+        <% if (topics_error) { %><div class="alert error" role="alert"><%= topics_error %></div><% } %>
+        <form method="post" action="/board/<%= post.post_id %>/topics">
+          <label for="topics">Topics <span class="hint">(up to 3, separated by commas)</span></label>
+          <input id="topics" name="topics" maxlength="100" value="<%= topics_form %>">
+          <button class="button secondary small" type="submit">Save topics</button>
+        </form>
       </details>
     <% } %>
   <% } %>
-  <%- include("partials/vote-buttons", {
-    score: question.score,
-    my_vote: question.my_vote,
-    action: `/questions/${question.question_id}/vote`,
-    can_vote: Boolean(currentUser) && currentUser.id !== question.uid_user && !question.deleted_at,
-  }) %>
+
 ```
 
-2. Replace the question's Edit/Delete block with:
+**`views/board/form.ejs`:** inside the `mode === "new"` block, right above the
+study-group `<label for="event_at">`:
 
 ```ejs
-  <% if (currentUser && currentUser.id === question.uid_user && !question.deleted_at) { %>
-    <div class="post-actions">
-      <% if (question.edit_count === 0) { %>
-        <a class="button secondary small" href="/questions/<%= question.question_id %>/edit">Edit question (once)</a>
+      <label for="topics">Topics <span class="hint">(optional, up to 3, separated by commas, e.g. sql, joins)</span></label>
+      <input id="topics" name="topics" maxlength="100" value="<%= form.topics %>">
+      <% const popular = locals.popular_topics || []; %>
+      <% if (popular.length > 0) { %>
+        <p class="hint">Popular: <%= popular.join(", ") %></p>
       <% } %>
-      <form method="post" action="/questions/<%= question.question_id %>/delete" onsubmit="return confirm('Delete this question? Its answers will stay.')">
-        <button class="button danger small" type="submit">Delete question</button>
-      </form>
-    </div>
-  <% } %>
+
 ```
 
-3. Replace each answer card (the whole `<article ...>` inside the
-   `answers.forEach` loop) with:
-
-```ejs
-      <article class="card answer-card" id="answer-<%= answer.answer_id %>">
-        <%- include("partials/vote-buttons", {
-          score: answer.score,
-          my_vote: answer.my_vote,
-          action: `/answers/${answer.answer_id}/vote`,
-          can_vote: Boolean(currentUser) && currentUser.id !== answer.uid_user && !answer.deleted_at && !question.deleted_at,
-        }) %>
-        <% if (answer.deleted_at) { %>
-          <p class="muted">This answer was deleted by its author.</p>
-        <% } else { %>
-        <div class="post-body"><%= answer.body %></div>
-        <p class="meta">Answered by <strong><%= answer.username %></strong> · <%= answer.created_at %>
-          <% if (answer.edit_count > 0) { %> · <em>Edited</em><% } %></p>
-        <% if (answer.edit_count > 0) { %>
-          <details class="original-text">
-            <summary>View original</summary>
-            <div class="post-body"><%= answer.original_body %></div>
-          </details>
-        <% } %>
-        <% if (currentUser && currentUser.id === answer.uid_user) { %>
-          <div class="post-actions">
-            <% if (answer.edit_count === 0) { %>
-              <a class="button secondary small" href="/answers/<%= answer.answer_id %>/edit">Edit (once)</a>
-            <% } %>
-            <form method="post" action="/answers/<%= answer.answer_id %>/delete" onsubmit="return confirm('Delete this answer?')">
-              <button class="button danger small" type="submit">Delete</button>
-            </form>
-          </div>
-        <% } %>
-        <% } %>
-      </article>
-```
-
-4. The answer form at the bottom: replace its opening `<% if (currentUser) { %>` with:
-
-```ejs
-  <% if (question.deleted_at) { %>
-    <section class="card callout"><p>This question was deleted, so it can't get new answers.</p></section>
-  <% } else if (currentUser) { %>
-```
-
-**`views/edit-question.ejs` and `views/edit-answer.ejs`:** add this line right above `<% if (error) { %>`:
-
-```ejs
-  <div class="alert board-note">You can only edit once. Your original text will be kept and visible to everyone.</div>
-```
-
-**CSS (`public/styles.css`, add at the end):**
+**CSS (`public/board.css`, add at the end):**
 
 ```css
-.original-text { background: #f2f6fb; border-radius: .6rem; margin: 0 0 1rem; padding: .75rem 1rem; }
-.original-text summary { color: var(--blue-dark); cursor: pointer; font-weight: 700; }
+.board-topics { display: flex; flex-wrap: wrap; gap: .35rem; margin: .2rem 0 .5rem; }
+.board-topic {
+  border-radius: 999px; background: var(--chip, #eef2f7); color: var(--blue-dark);
+  font-size: .8rem; font-weight: 700; padding: .1rem .55rem; text-decoration: none;
+}
+.board-topic:hover { text-decoration: underline; }
+.board-related, .board-topics-edit {
+  border: 1px solid var(--line); border-radius: .6rem; background: var(--card); margin: 1rem 0; padding: .7rem 1rem;
+}
+.board-related summary, .board-topics-edit summary { cursor: pointer; font-weight: 700; color: var(--blue-dark); }
+.board-related ul { display: grid; gap: .45rem; margin: .7rem 0 0; padding-left: 1.1rem; }
+.board-related li span { font-size: .85rem; margin-left: .3rem; }
 ```
 
-### 3.9 `npm run check`
+### 3.5 `npm run check`
 
-**a. Two vote checks change on purpose,** because votes now survive a deleted
-question. In `checkVotes`, replace the last check ("deleting a question
-deletes its votes") with:
+Paste this function above `async function main()` in `scripts/check-site.js`:
 
 ```js
-  check("votes are kept when a question is deleted", Number(await voteRows("Qa1_question_votes", "question_id", questionId)) === 1
-    && Number(await voteRows("Qa1_answer_votes", "answer_id", answerId)) === 1);
-  check("deleted question can't be voted on", (await b("POST", `/questions/${questionId}/vote`, { direction: "down" })).status === 404);
-```
+async function checkTopics(a, b, anon) {
+  const topicsOf = async (postId) => {
+    const [rows] = await execute(
+      `SELECT t.name FROM Qa1_board_post_topics pt JOIN Qa1_topics t ON t.topic_id = pt.topic_id
+       WHERE pt.post_id = ? ORDER BY t.name`,
+      [postId],
+    );
+    return rows.map((row) => row.name).join(",");
+  };
+  const t1 = `t1${run}`;
+  const t2 = `t2${run}`;
+  const t3 = `t3${run}`;
 
-**b. New checks.** Paste this function above `async function main()`:
+  const tooMany = await a("POST", "/board/new", { title: "x", body: "y", post_type: "discussion", topics: "a, b, c, d" });
+  check("more than 3 topics rejected (form kept)", tooMany.status === 400 && tooMany.text.includes("at most 3"));
+  check("invalid topic rejected", (await a("POST", "/board/new", { title: "x", body: "y", post_type: "discussion", topics: "c++!" })).status === 400);
 
-```js
-async function checkHistory(a, b, anon) {
-  const asked = await a("POST", "/questions/new", { title: `History ${run}`, body: "First version" });
-  const questionId = asked.location.split("/").pop();
-  check("A edits own question once", (await a("POST", `/questions/${questionId}/edit`, { title: `History v2 ${run}`, body: "Second version" })).location === `/questions/${questionId}`);
-  let page = await anon("GET", `/questions/${questionId}`);
-  check("edited question shows Edited and the original", page.text.includes("Second version") && page.text.includes("View original") && page.text.includes("First version"));
-  check("a second question edit is refused", (await a("POST", `/questions/${questionId}/edit`, { title: "again", body: "again" })).status === 403);
+  const first = await a("POST", "/board/new", { title: `Topic post A ${run}`, body: "a", post_type: "discussion", topics: ` ${t1.toUpperCase()}, ${t2} , ${t1}` });
+  const firstId = first.location.split("/").pop();
+  check("topics are saved cleaned and without duplicates", (await topicsOf(firstId)) === [t1, t2].sort().join(","));
+  const second = await b("POST", "/board/new", { title: `Topic post B ${run}`, body: "b", post_type: "resource", topics: `${t1}, ${t2}` });
+  const secondId = second.location.split("/").pop();
+  const third = await b("POST", "/board/new", { title: `Topic post C ${run}`, body: "c", post_type: "discussion", topics: t2 });
+  const thirdId = third.location.split("/").pop();
+  await b("POST", "/board/new", { title: `Unrelated ${run}`, body: "d", post_type: "discussion", topics: t3 });
 
-  await b("POST", `/questions/${questionId}/answers`, { body: `Kept answer ${run}` });
-  await b("POST", `/questions/${questionId}/answers`, { body: `Gone answer ${run}` });
-  const [answerRows] = await execute("SELECT answer_id FROM Qa1_answers WHERE question_id = ? ORDER BY answer_id", [questionId]);
-  const [keptId, goneId] = answerRows.map((row) => row.answer_id);
-  check("B edits own answer once", (await b("POST", `/answers/${keptId}/edit`, { body: `Kept answer v2 ${run}` })).status === 302);
-  check("a second answer edit is refused", (await b("POST", `/answers/${keptId}/edit`, { body: "again" })).status === 403);
-  check("B deletes own answer", (await b("POST", `/answers/${goneId}/delete`)).status === 302);
-  page = await anon("GET", `/questions/${questionId}`);
-  check("deleted answer shows as deleted, text hidden", page.text.includes("This answer was deleted") && !page.text.includes(`Gone answer ${run}`));
-  check("deleted answer is still in the database", Number(await sqlValue("SELECT COUNT(*) FROM Qa1_answers WHERE answer_id = ? AND deleted_at IS NOT NULL", [goneId])) === 1);
+  let page = await anon("GET", `/board/${firstId}`);
+  const related = page.text.slice(page.text.indexOf("board-related"));
+  check("related posts list the posts that share topics", related.includes(`Topic post B ${run}`) && related.includes(`Topic post C ${run}`));
+  check("most shared topics come first", related.indexOf(`Topic post B ${run}`) < related.indexOf(`Topic post C ${run}`));
+  check("posts with no shared topic aren't related", !related.includes(`Unrelated ${run}`));
+  check("topic page lists every post with that topic", (await anon("GET", `/board/topic/${t2}`)).text.includes(`Topic post C ${run}`));
 
-  check("A deletes own question", (await a("POST", `/questions/${questionId}/delete`)).location === "/");
-  check("home no longer lists the deleted question", !(await anon("GET", "/")).text.includes(`History v2 ${run}`));
-  page = await anon("GET", `/questions/${questionId}`);
-  check("deleted question page hides its text, keeps answers", page.text.includes("deleted by its author") && !page.text.includes("Second version") && page.text.includes(`Kept answer v2 ${run}`));
-  check("deleted question can't get new answers", (await b("POST", `/questions/${questionId}/answers`, { body: "late" })).status === 404);
-  check("deleted question can't be edited", (await a("GET", `/questions/${questionId}/edit`)).status === 403);
-  check("deleted question is still in the database", Number(await sqlValue("SELECT COUNT(*) FROM Qa1_questions WHERE question_id = ? AND deleted_at IS NOT NULL", [questionId])) === 1);
+  check("B can't change A's topics", (await b("POST", `/board/${firstId}/topics`, { topics: t3 })).status === 403);
+  check("bad topic change rejected", (await a("POST", `/board/${firstId}/topics`, { topics: "a, b, c, d" })).status === 400);
+  check("A changes own topics", (await a("POST", `/board/${firstId}/topics`, { topics: t3 })).location === `/board/${firstId}`);
+  check("changing topics doesn't use up the one edit", Number(await sqlValue("SELECT edit_count FROM Qa1_board_posts WHERE post_id = ?", [firstId])) === 0);
+  page = await anon("GET", `/board/${firstId}`);
+  check("related posts follow the new topics", page.text.includes(`Unrelated ${run}`) && !page.text.includes(`Topic post C ${run}`));
+
+  await b("POST", `/board/${thirdId}/delete`);
+  page = await anon("GET", `/board/${secondId}`);
+  check("deleted posts aren't suggested as related", !page.text.slice(page.text.indexOf("board-related")).includes(`Topic post C ${run}`));
 }
 ```
 
-And in `main()`, right after `await checkVotes(a, b, anon);`, add:
+And in `main()`, right after `await checkBoard(a, b, anon, questionId);`, add:
 
 ```js
-  await checkHistory(a, b, anon);
+  await checkTopics(a, b, anon);
 ```
-
-### 3.10 Update the rulebooks
-
-These still say the original tables can't change. After phase 3 is merged:
-
-- `migrations/README.md`: replace "Only add new tables. Never change
-  `Qa1_users`, `Qa1_questions` or `Qa1_answers`." with "Prefer adding new
-  tables. Changing an existing table needs Kevin's approval and must keep the
-  current code working (add columns that are NULL or have a default)."
-- `AGENTS.md`, rule 1 under "Database rules": the same wording.
 
 ### Phase 3 checklist
-
-- [ ] After 3.1 and 3.2 only, with the **old** code: `npm run check` ends with ALL PASSED.
-- [ ] Edit a question once: "Edited" shows, and "View original" shows the old title and text. A second edit is refused.
-- [ ] Same for an answer.
-- [ ] Delete an answer: it shows "This answer was deleted by its author", and the row is still in phpMyAdmin with `deleted_at` filled in.
-- [ ] Delete a question: it disappears from the home page and feed; its page says deleted; its answers are still listed; no new answers, edits or votes.
-- [ ] A board post linked to that question says the linked question was deleted.
-- [ ] After 3.3 and 3.4: in phpMyAdmin's SQL tab on the **test** database, `DELETE FROM Qa1_answers WHERE answer_id = 1;` fails with "Answers cannot be deleted".
-- [ ] `npm run check` ends with ALL PASSED (72 checks at the end of testing this plan).
-
-### Undo plan
-
-Never edit or delete the four migration files. To undo, add **new** migrations, in reverse order:
-
-```sql
-DROP TRIGGER trg_answers_no_delete;
-DROP TRIGGER trg_questions_no_delete;
-ALTER TABLE Qa1_answers DROP COLUMN original_body, DROP COLUMN edit_count, DROP COLUMN deleted_at;
-ALTER TABLE Qa1_questions DROP COLUMN original_title, DROP COLUMN original_body, DROP COLUMN edit_count, DROP COLUMN deleted_at;
-```
-
-⚠️ Dropping the columns **erases** every saved original text, and turns
-every "deleted" question and answer back into a visible one. Remove the code
-that uses the columns first, then run this. (Tested: the tables went back to
-their exact original columns.)
+- [ ] `npm run migrate:status` shows the topics migration as applied on the test database.
+- [ ] A new post with `SQL, Joins, sql` ends up with exactly `#joins` and `#sql`.
+- [ ] 4 topics, or a topic like `c++!`, is refused with a clear message, and the form keeps what you typed.
+- [ ] The related-posts dropdown lists posts that share topics, most shared first, and shows which topics they share.
+- [ ] Clicking a tag opens the topic page with every post that has it.
+- [ ] "Change topics" works for the author only, and the post can still use its one edit afterwards.
+- [ ] Deleted posts never appear as related.
+- [ ] `npm run check` ends with ALL PASSED (58 checks at the end of testing this plan, before phases 1–2 are added).
 
 ### Problems found while testing this phase
 
-| What happened | What the plan does about it |
+| What happened | What the plan does instead |
 |---|---|
-| Adding the triggers before the new code: 4 checks failed ("Questions cannot be deleted") | Triggers are steps 3.3 and 3.4, after the code switch |
-| A board post linked to a soft-deleted question kept linking to it, because `question_id` is no longer cleared | The board checks the live question's `deleted_at` (3.7) |
-| Inserting the new columns into the question query by matching the wrong line made **every** post look deleted, so all their text disappeared | 3.6c says exactly which line they go after, `hideIfDeleted` treats a missing column as "not deleted", and `npm run check` caught it immediately |
-| "Deleting a question deletes its votes" stopped being true | The check is replaced on purpose (3.9a) |
+| Creating topics inside the post's transaction: **75 of 100** posts made at the same moment with the same new topics crashed with "Deadlock found" | `ensureTopics` creates topics *before* the transaction, one committed statement each |
+| Still **~44 of 100** crashed: a new post first ran `DELETE` on its (empty) topic links, which locked part of the index and collided with other new posts | New posts only add links (`linkTopics`); only changing topics deletes first (`replaceTopics`). Result: **300 of 300** saved, 0 deadlocks, no duplicate topics |
+| The new-post form can be shown from an error path that doesn't pass the suggestions | The form reads `locals.popular_topics || []` |
