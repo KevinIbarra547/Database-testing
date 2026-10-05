@@ -4,6 +4,10 @@ This plan comes **after** the class feed (`docs/class-feed-plan.md`, steps 1–4
 is finished and merged into `main`. Each phase is its own branch and its own
 pull request. Don't start a phase until the one before it is merged.
 
+**Build order (decided by Kevin):** class feed → **Phase 3 (topics)** →
+Phase 1 (question numbers) → Phase 2 (votes). The phase numbers are just names;
+topics doesn't depend on phases 1 or 2, so it can go first.
+
 | Phase | What it adds | Database change | Who runs the migration |
 |---|---|---|---|
 | 1 | Question numbers ("#12") everywhere, and "#12" in the search box | None | — |
